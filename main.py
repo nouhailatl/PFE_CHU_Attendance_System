@@ -82,3 +82,34 @@ def list_interns(db: Session = Depends(get_db)):
 def get_dashboard_data(db: Session = Depends(get_db)):
     # Cette route renvoie tout l'historique nécessaire au suivi et à la traçabilité
     return db.query(DailyStatus).all()
+
+# 1. On définit ce que l'API doit recevoir (Nom, Prénom, etc.)
+class InternCreate(BaseModel):
+    first_name: str
+    last_name: str
+    department_id: int
+
+# 2. On crée la route POST pour l'enregistrement
+@app.post("/interns/add", tags=["Administration"])
+def add_new_intern(intern_data: InternCreate, db: Session = Depends(get_db)):
+    # Génération d'un identifiant unique (UUID)
+    new_uuid = str(uuid.uuid4())
+    
+    # Création de l'objet stagiaire
+    new_intern = Intern(
+        id=new_uuid,
+        first_name=intern_data.first_name,
+        last_name=intern_data.last_name,
+        department_id=intern_data.department_id
+    )
+    
+    # Sauvegarde dans la base hospital_stage.db
+    db.add(new_intern)
+    db.commit()  # <-- C'est ça qui valide l'écriture !
+    db.refresh(new_intern)
+    
+    return {
+        "message": "Stagiaire ajouté avec succès",
+        "intern_id": new_uuid,
+        "full_name": f"{new_intern.first_name} {new_intern.last_name}"
+    }
