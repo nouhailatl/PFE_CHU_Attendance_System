@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard - CHU</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 50px; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; }
+        h2 { color: #1e88e5; text-align: center; margin-bottom: 25px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        
+        button { width: 100%; padding: 12px; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 10px; transition: 0.3s; }
+        .btn-add { background-color: #1e88e5; }
+        .btn-add:hover { background-color: #1565c0; }
+        
+        /* Style du bouton de téléchargement */
+        #downloadBtn { background-color: #2e7d32; display: none; margin-top: 20px; font-weight: bold; }
+        #downloadBtn:hover { background-color: #1b5e20; }
+        
+        #message { margin-top: 15px; text-align: center; font-weight: bold; }
+        #qrcode { display: none; } /* On cache le QR code brut */
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Inscription Stagiaire</h2>
+    <div class="form-group">
+        <label>Prénom</label>
+        <input type="text" id="firstName" placeholder="Ex: Nouhaila">
+    </div>
+    <div class="form-group">
+        <label>Nom</label>
+        <input type="text" id="lastName" placeholder="Ex: Touil">
+    </div>
+    <div class="form-group">
+        <label>Service (ID)</label>
+        <select id="deptId">
+            <option value="1">1 - Urgences</option>
+            <option value="2">2 - Radiologie</option>
+            <option value="3">3 - Cardiologie</option>
+            <option value="4">4 - Pediatrie</option>
+            <option value="5">5 - Chirurgie</option>
+        </select>
+    </div>
+    
+    <button class="btn-add" onclick="ajouterStagiaire()">Enregistrer le Stagiaire</button>
+    
+    <div id="message"></div>
+    
+    <button id="downloadBtn" onclick="genererBadgePDF()">📥 Télécharger le Badge PDF</button>
+    
+    <div id="qrcode"></div>
+</div>
+
+<script>
+    let dernierStagiaire = null;
+
+    async function ajouterStagiaire() {
+        const prenom = document.getElementById('firstName').value;
+        const nom = document.getElementById('lastName').value;
+        const service = document.getElementById('deptId').value;
+
+        const data = {
+            first_name: prenom,
+            last_name: nom,
+            department_id: parseInt(service)
+        };
+
+        const msgDiv = document.getElementById('message');
+        const dlBtn = document.getElementById('downloadBtn');
+        msgDiv.innerText = "Envoi en cours...";
+        dlBtn.style.display = "none"; // On cache le bouton si on fait une nouvelle inscription
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/interns/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                msgDiv.style.color = "green";
+                msgDiv.innerText = "✅ Stagiaire enregistré avec succès !";
+                
+                // On sauvegarde les infos pour le PDF
+                dernierStagiaire = {
+                    nomComplet: prenom + " " + nom,
+                    id: result.id,
+                    service: service
+                };
+
+                // On affiche le bouton de téléchargement
+                dlBtn.style.display = "block";
+
+                // Optionnel : vider les champs
+                document.getElementById('firstName').value = "";
+                document.getElementById('lastName').value = "";
+            } else {
+                msgDiv.style.color = "red";
+                msgDiv.innerText = "❌ Erreur : " + (result.error || "Problème serveur");
+            }
+        } catch (error) {
+            msgDiv.style.color = "red";
+            msgDiv.innerText = "❌ Serveur non joignable (Lancez Uvicorn !)";
+        }
+    }
+
+    function genererBadgePDF() {
+        if (!dernierStagiaire) return;
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: [85, 120] // Format badge standard
+        });
+
+        // 1. Générer le QR Code en image
+        const qrDiv = document.getElementById('qrcode');
+        qrDiv.innerHTML = ""; // Vider le précédent
+        const qrcode = new QRCode(qrDiv, {
+            text: dernierStagiaire.id,
+            width: 128,
+            height: 128
+        });
+
+        // Laisser un petit délai pour que le QR code se génère avant de créer le PDF
+        setTimeout(() => {
+            const qrCanvas = qrDiv.querySelector('canvas');
+            const qrImage = qrCanvas.toDataURL("image/png");
+
+            // --- DESIGN DU BADGE ---
+            // Bordure bleue
+            doc.setDrawColor(30, 136, 229);
+            doc.setLineWidth(1);
+            doc.roundedRect(5, 5, 75, 110, 3, 3);
+
+            // Bandeau Entête
+            doc.setFillColor(30, 136, 229);
+            doc.rect(5, 5, 75, 15, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(10);
+            doc.text("CENTRE HOSPITALIER - CHU", 42.5, 15, { align: "center" });
+
+            // Infos Stagiaire
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(14);
+            doc.setFont("helvetica", "bold");
+            doc.text(dernierStagiaire.nomComplet.toUpperCase(), 42.5, 35, { align: "center" });
+            
+            doc.setFontSize(10);
+            doc.text("SERVICE ID : " + dernierStagiaire.service, 42.5, 45, { align: "center" });
+
+            // QR Code
+            doc.addImage(qrImage, 'PNG', 22.5, 55, 40, 40);
+
+            // Footer
+            doc.setFontSize(7);
+            doc.setTextColor(150, 150, 150);
+            doc.text("ID: " + dernierStagiaire.id, 42.5, 105, { align: "center" });
+
+            // Téléchargement
+            doc.save(`badge_${dernierStagiaire.nomComplet.replace(' ', '_')}.pdf`);
+        }, 300);
+    }
+</script>
+
+</body>
+</html>
