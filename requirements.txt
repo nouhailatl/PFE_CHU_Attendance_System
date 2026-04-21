@@ -20,3 +20,7 @@ pillow          # required by qrcode for image generation (make_image())
 # zoneinfo is stdlib in Python >= 3.9 — no install needed.
 # pytz is the fallback for older Python versions.
 #pytz            # fallback timezone support
+
+# PostgreSQL support (for production deployment)
+psycopg2-binary
+python-dotenv

@@ -5,10 +5,14 @@ from sqlalchemy import Float
 import uuid
 from datetime import datetime
 from sqlalchemy import Boolean
+import os
 
 # Pour le test, on utilise SQLite (un fichier local), 
-# mais vous passerez à PostgreSQL plus tard comme prévu [cite: 41]
-DATABASE_URL = "sqlite:///./hospital_stage.db"
+# mais vous passerez à PostgreSQL plus tard comme prévu 
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///./hospital_stage.db"  # fallback for local dev only
+)
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
