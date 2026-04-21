@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Boolean
 import os
+from dotenv import load_dotenv
 
 # Pour le test, on utilise SQLite (un fichier local), 
 # mais vous passerez à PostgreSQL plus tard comme prévu 
@@ -13,6 +14,8 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "sqlite:///./hospital_stage.db"  # fallback for local dev only
 )
+
+load_dotenv()
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

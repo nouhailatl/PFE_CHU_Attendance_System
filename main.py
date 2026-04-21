@@ -31,12 +31,13 @@ STATUS FIELDS on DailyStatus:
 Times stored as UTC-naive in SQLite (backward-compatible with existing data).
 All comparisons use Morocco local time (UTC+1, fixed offset).
 """
-
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from database import SessionLocal, Intern, DailyStatus
+from database import SessionLocal, Intern, DailyStatus, Department
 from pydantic import BaseModel
 from datetime import datetime, time, timezone, timedelta
 import uuid
@@ -191,7 +192,7 @@ class ScanRequest(BaseModel):
 class InternCreate(BaseModel):
     first_name: str
     last_name: str
-    department_id: int
+    department_id: str
 
 
 # ── /scan ─────────────────────────────────────────────────────────────────────
@@ -372,13 +373,17 @@ def add_new_intern(intern_data: InternCreate, db: Session = Depends(get_db)):
             "id":        new_uuid,
             "full_name": f"{new_intern.first_name} {new_intern.last_name}",
         }
-    except Exception:
+    except Exception as e:
         db.rollback()
+        print(f"❌ REAL ERROR: {e}")  # ← this will show in uvicorn terminal
         raise HTTPException(
             status_code=500,
-            detail="Erreur de base de données (Vérifiez que DB Browser est fermé)",
+            detail=str(e)  # ← this will show in browser
         )
 
+@app.get("/departments")
+def list_departments(db: Session = Depends(get_db)):
+    return db.query(Department).all()
 
 @app.delete("/interns/{intern_id}", tags=["Administration"])
 def delete_intern(intern_id: str, db: Session = Depends(get_db)):

@@ -6,13 +6,14 @@ __pycache__/
 
 # Virtual environment
 venv/
-.env/
+.env
 
 # VS Code
 .vscode/
 
 
-*.pem
+key.pem
+cert.pem
 *.db
 .ipynb_checkpoints/
 etl/features.csv

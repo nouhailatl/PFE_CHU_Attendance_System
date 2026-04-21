@@ -1,4 +1,6 @@
-from database import SessionLocal, Intern, DailyStatus
+from dotenv import load_dotenv
+load_dotenv()
+from database import SessionLocal, Intern, DailyStatus, Department
 from datetime import datetime, timedelta
 import uuid
 import random
@@ -6,13 +8,12 @@ import random
 db = SessionLocal()
 
 # IDs des départements déjà créés
-departements = [
-    "003f271b-5922-477d-8d17-c4db0414f7eb",  # Urgences
-    "f5cc61e6-0f8e-4a75-9b5b-cbf4fc3e1bd6",  # Cardiologie
-    "030e2c72-dce9-4ad1-8127-10617c396d53",  # Pédiatrie
-    "137f25ca-6c32-4578-ab56-9e7a604dbc97",  # Chirurgie
-    "c1f5a0d8-5939-410f-ac8a-4aa008c1ca42",  # Neurologie
-]
+departements = [d.id for d in db.query(Department).all()]
+
+if not departements:
+    print("❌ No departments found! Run seed_departments.py first.")
+    db.close()
+    exit()
 
 # 40 stagiaires fictifs
 stagiaires = [

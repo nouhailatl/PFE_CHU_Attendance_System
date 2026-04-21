@@ -1,367 +1,433 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CHU · Inscription Stagiaires</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    
+
     <style>
-        :root {
-            --bg: #0a0d12;
-            --surface: #12171f;
-            --surface2: #1a2130;
-            --border: #1f2d3d;
-            --accent: #00d4a8;
-            --accent-dim: rgba(0, 212, 168, 0.12);
-            --accent-glow: rgba(0, 212, 168, 0.35);
-            --danger: #ff4d6d;
-            --text: #e2e8f0;
-            --text-muted: #64748b;
-            --radius: 16px;
-            --radius-sm: 10px;
+      :root {
+        --bg: #0a0d12;
+        --surface: #12171f;
+        --surface2: #1a2130;
+        --border: #1f2d3d;
+        --accent: #00d4a8;
+        --accent-dim: rgba(0, 212, 168, 0.12);
+        --accent-glow: rgba(0, 212, 168, 0.35);
+        --danger: #ff4d6d;
+        --text: #e2e8f0;
+        --text-muted: #64748b;
+        --radius: 16px;
+        --radius-sm: 10px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "DM Sans", sans-serif;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+
+      /* Background Grid Pattern */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(0, 212, 168, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 212, 168, 0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
+        z-index: -1;
+      }
+
+      .card {
+        background: var(--surface);
+        width: 100%;
+        max-width: 420px;
+        padding: 40px 30px;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        position: relative;
+      }
+
+      /* Header */
+      header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .logo-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--accent-dim);
+        border: 1px solid rgba(0, 212, 168, 0.25);
+        border-radius: 100px;
+        padding: 6px 14px;
+        margin-bottom: 12px;
+      }
+
+      .logo-badge .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--accent-glow);
+      }
+
+      .logo-badge span {
+        font-family: "DM Mono", monospace;
+        font-size: 11px;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      h2 {
+        font-family: "Syne", sans-serif;
+        font-size: 24px;
+        font-weight: 800;
+        margin-bottom: 5px;
+      }
+
+      h2 em {
+        font-style: normal;
+        color: var(--accent);
+      }
+
+      /* Form */
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        font-family: "DM Mono", monospace;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        margin-bottom: 8px;
+        letter-spacing: 0.05em;
+      }
+
+      input,
+      select {
+        width: 100%;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        padding: 14px;
+        border-radius: var(--radius-sm);
+        color: var(--text);
+        font-size: 15px;
+        transition: border-color 0.3s;
+      }
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      /* Buttons */
+      button {
+        width: 100%;
+        padding: 16px;
+        border-radius: var(--radius-sm);
+        font-family: "DM Sans", sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      .btn-add {
+        background: var(--accent);
+        color: #001a14;
+        margin-top: 10px;
+      }
+
+      .btn-add:hover {
+        background: #00f2bf;
+        transform: translateY(-2px);
+      }
+
+      #downloadBtn {
+        background: var(--surface2);
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        margin-top: 20px;
+        display: none;
+        animation: fadeIn 0.4s ease;
+      }
+
+      #downloadBtn:hover {
+        background: var(--accent-dim);
+      }
+
+      /* Status & QR Hidden */
+      #message {
+        margin-top: 20px;
+        text-align: center;
+        font-size: 14px;
+        min-height: 24px;
+      }
+
+      #qrcode {
+        display: none;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
         }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: "DM Sans", sans-serif;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+        to {
+          opacity: 1;
+          transform: translateY(0);
         }
+      }
 
-        /* Background Grid Pattern */
-        body::before {
-            content: "";
-            position: fixed;
-            inset: 0;
-            background-image: 
-                linear-gradient(rgba(0, 212, 168, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 212, 168, 0.03) 1px, transparent 1px);
-            background-size: 40px 40px;
-            z-index: -1;
-        }
-
-        .card {
-            background: var(--surface);
-            width: 100%;
-            max-width: 420px;
-            padding: 40px 30px;
-            border-radius: var(--radius);
-            border: 1px solid var(--border);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            position: relative;
-        }
-
-        /* Header */
-        header { text-align: center; margin-bottom: 30px; }
-
-        .logo-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--accent-dim);
-            border: 1px solid rgba(0, 212, 168, 0.25);
-            border-radius: 100px;
-            padding: 6px 14px;
-            margin-bottom: 12px;
-        }
-
-        .logo-badge .dot {
-            width: 7px; height: 7px;
-            border-radius: 50%;
-            background: var(--accent);
-            box-shadow: 0 0 8px var(--accent-glow);
-        }
-
-        .logo-badge span {
-            font-family: "DM Mono", monospace;
-            font-size: 11px;
-            color: var(--accent);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
-
-        h2 {
-            font-family: "Syne", sans-serif;
-            font-size: 24px;
-            font-weight: 800;
-            margin-bottom: 5px;
-        }
-
-        h2 em { font-style: normal; color: var(--accent); }
-
-        /* Form */
-        .form-group { margin-bottom: 20px; }
-        
-        label {
-            display: block;
-            font-size: 12px;
-            font-family: "DM Mono", monospace;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            margin-bottom: 8px;
-            letter-spacing: 0.05em;
-        }
-
-        input, select {
-            width: 100%;
-            background: var(--surface2);
-            border: 1px solid var(--border);
-            padding: 14px;
-            border-radius: var(--radius-sm);
-            color: var(--text);
-            font-size: 15px;
-            transition: border-color 0.3s;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-
-        /* Buttons */
-        button {
-            width: 100%;
-            padding: 16px;
-            border-radius: var(--radius-sm);
-            font-family: "DM Sans", sans-serif;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .btn-add {
-            background: var(--accent);
-            color: #001a14;
-            margin-top: 10px;
-        }
-
-        .btn-add:hover { background: #00f2bf; transform: translateY(-2px); }
-
-        #downloadBtn {
-            background: var(--surface2);
-            border: 1px solid var(--accent);
-            color: var(--accent);
-            margin-top: 20px;
-            display: none;
-            animation: fadeIn 0.4s ease;
-        }
-
-        #downloadBtn:hover {
-            background: var(--accent-dim);
-        }
-
-        /* Status & QR Hidden */
-        #message {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 14px;
-            min-height: 24px;
-        }
-
-        #qrcode { display: none; }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        footer {
-            margin-top: 30px;
-            font-size: 11px;
-            color: var(--text-faint);
-            text-align: center;
-            font-family: "DM Mono", monospace;
-        }
+      footer {
+        margin-top: 30px;
+        font-size: 11px;
+        color: var(--text-faint);
+        text-align: center;
+        font-family: "DM Mono", monospace;
+      }
     </style>
-</head>
-<body>
-
-<div class="card">
-    <header>
+  </head>
+  <body>
+    <div class="card">
+      <header>
         <div class="logo-badge">
-            <div class="dot"></div>
-            <span>Administration CHU</span>
+          <div class="dot"></div>
+          <span>Administration CHU</span>
         </div>
         <h2>Nouveau <em>Stagiaire</em></h2>
-    </header>
+      </header>
 
-    <div class="form-group">
+      <div class="form-group">
         <label>Prénom</label>
-        <input type="text" id="firstName" placeholder="Prénom du stagiaire">
-    </div>
-    
-    <div class="form-group">
+        <input type="text" id="firstName" placeholder="Prénom du stagiaire" />
+      </div>
+
+      <div class="form-group">
         <label>Nom</label>
-        <input type="text" id="lastName" placeholder="Nom de famille">
-    </div>
-    
-    <div class="form-group">
+        <input type="text" id="lastName" placeholder="Nom de famille" />
+      </div>
+
+      <div class="form-group">
         <label>Service Assigné</label>
         <select id="deptId">
-            <option value="1">1 - Urgences</option>
-            <option value="2">2 - Radiologie</option>
-            <option value="3">3 - Cardiologie</option>
-            <option value="4">4 - Pediatrie</option>
-            <option value="5">5 - Chirurgie</option>
+          <option value="ce97e743-b3b1-41be-8c31-d6d456f1b55b">
+            1 - Neurologie
+          </option>
+          <option value="4a1cc5d7-81fb-4bdd-8245-268da720000b">
+            2 - Cardiologie
+          </option>
+          <option value="59e9cf61-5824-4b6b-86ec-93f53d6bc145">
+            3 - Pediatrie
+          </option>
+          <option value="89d7ec46-24fb-4544-8428-6cc4e8d876c6">
+            4 - Chirurgie
+          </option>
         </select>
-    </div>
-    
-    <button class="btn-add" onclick="ajouterStagiaire()">
+      </div>
+
+      <button class="btn-add" onclick="ajouterStagiaire()">
         <span>Enregistrer dans la base</span>
-    </button>
-    
-    <div id="message"></div>
-    
-    <button id="downloadBtn" onclick="genererBadgePDF()">
+      </button>
+
+      <div id="message"></div>
+
+      <button id="downloadBtn" onclick="genererBadgePDF()">
         📥 Télécharger le Badge
-    </button>
-    
-    <div id="qrcode"></div>
-    
-    <footer style="color: var(--text-muted); margin-top: 25px;">
+      </button>
+
+      <div id="qrcode"></div>
+
+      <footer style="color: var(--text-muted); margin-top: 25px">
         CHU · Système de gestion v1.0
-    </footer>
-</div>
+      </footer>
+    </div>
 
-<script>
-    let dernierStagiaire = null;
+    <script>
+      let dernierStagiaire = null;
 
-    async function ajouterStagiaire() {
-        const prenom = document.getElementById('firstName').value;
-        const nom = document.getElementById('lastName').value;
-        const service = document.getElementById('deptId').value;
+      // Add this at the top of your <script> block
+      async function loadDepartments() {
+        try {
+          const res = await fetch("http://127.0.0.1:8000/departments");
+          const depts = await res.json();
+          const sel = document.getElementById("deptId");
+          sel.innerHTML = "";
+          depts.forEach((d) => {
+            const opt = document.createElement("option");
+            opt.value = d.id; // UUID string like "003f271b-..."
+            opt.textContent = d.name;
+            sel.appendChild(opt);
+          });
+        } catch (e) {
+          console.error("Could not load departments", e);
+        }
+      }
 
-        if(!prenom || !nom) {
-            const msgDiv = document.getElementById('message');
-            msgDiv.style.color = "var(--danger)";
-            msgDiv.innerText = "⚠️ Veuillez remplir tous les champs.";
-            return;
+      window.addEventListener("DOMContentLoaded", loadDepartments);
+
+      // Call it on page load
+      window.addEventListener("DOMContentLoaded", loadDepartments);
+
+      async function ajouterStagiaire() {
+        const prenom = document.getElementById("firstName").value;
+        const nom = document.getElementById("lastName").value;
+        const service = document.getElementById("deptId").value;
+
+        if (!prenom || !nom) {
+          const msgDiv = document.getElementById("message");
+          msgDiv.style.color = "var(--danger)";
+          msgDiv.innerText = "⚠️ Veuillez remplir tous les champs.";
+          return;
         }
 
         const data = {
-            first_name: prenom,
-            last_name: nom,
-            department_id: parseInt(service)
+          first_name: prenom,
+          last_name: nom,
+          department_id: service,
         };
 
-        const msgDiv = document.getElementById('message');
-        const dlBtn = document.getElementById('downloadBtn');
+        const msgDiv = document.getElementById("message");
+        const dlBtn = document.getElementById("downloadBtn");
         msgDiv.style.color = "var(--text-muted)";
         msgDiv.innerText = "Initialisation du transfert...";
         dlBtn.style.display = "none";
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/interns/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
+          const response = await fetch("http://127.0.0.1:8000/interns/add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
 
-            const result = await response.json();
-            
-            if (response.ok) {
-                msgDiv.style.color = "var(--accent)";
-                msgDiv.innerText = "✅ Stagiaire synchronisé avec succès";
-                
-                dernierStagiaire = {
-                    nomComplet: prenom + " " + nom,
-                    id: result.id,
-                    service: service
-                };
+          const result = await response.json();
 
-                dlBtn.style.display = "flex";
+          if (response.ok) {
+            msgDiv.style.color = "var(--accent)";
+            msgDiv.innerText = "✅ Stagiaire synchronisé avec succès";
 
-                document.getElementById('firstName').value = "";
-                document.getElementById('lastName').value = "";
-            } else {
-                msgDiv.style.color = "var(--danger)";
-                msgDiv.innerText = "❌ Erreur : " + (result.error || "Problème serveur");
-            }
-        } catch (error) {
+            dernierStagiaire = {
+              nomComplet: prenom + " " + nom,
+              id: result.id,
+              service: service,
+            };
+
+            dlBtn.style.display = "flex";
+
+            document.getElementById("firstName").value = "";
+            document.getElementById("lastName").value = "";
+          } else {
             msgDiv.style.color = "var(--danger)";
-            msgDiv.innerText = "❌ Serveur hors ligne (FastAPI)";
+            msgDiv.innerText =
+              "❌ Erreur : " + (result.error || "Problème serveur");
+          }
+        } catch (error) {
+          msgDiv.style.color = "var(--danger)";
+          msgDiv.innerText = "❌ Serveur hors ligne (FastAPI)";
         }
-    }
+      }
 
-    function genererBadgePDF() {
+      function genererBadgePDF() {
         if (!dernierStagiaire) return;
 
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: [85, 120]
+          orientation: "portrait",
+          unit: "mm",
+          format: [85, 120],
         });
 
-        const qrDiv = document.getElementById('qrcode');
+        const qrDiv = document.getElementById("qrcode");
         qrDiv.innerHTML = "";
         const qrcode = new QRCode(qrDiv, {
-            text: dernierStagiaire.id,
-            width: 256,
-            height: 256,
-            colorDark : "#0a0d12",
-            colorLight : "#ffffff",
+          text: dernierStagiaire.id,
+          width: 256,
+          height: 256,
+          colorDark: "#0a0d12",
+          colorLight: "#ffffff",
         });
 
         setTimeout(() => {
-            const qrCanvas = qrDiv.querySelector('canvas');
-            const qrImage = qrCanvas.toDataURL("image/png");
+          const qrCanvas = qrDiv.querySelector("canvas");
+          const qrImage = qrCanvas.toDataURL("image/png");
 
-            // Fond
-            doc.setFillColor(245, 247, 250);
-            doc.rect(0, 0, 85, 120, 'F');
+          // Fond
+          doc.setFillColor(245, 247, 250);
+          doc.rect(0, 0, 85, 120, "F");
 
-            // Accent Top (Bleu médical pour le badge physique)
-            doc.setFillColor(30, 136, 229);
-            doc.rect(0, 0, 85, 25, 'F');
-            
-            doc.setTextColor(255, 255, 255);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(12);
-            doc.text("CENTRE HOSPITALIER", 42.5, 12, { align: "center" });
-            doc.setFontSize(8);
-            doc.text("CARTE D'ACCÈS STAGIAIRE", 42.5, 18, { align: "center" });
+          // Accent Top (Bleu médical pour le badge physique)
+          doc.setFillColor(30, 136, 229);
+          doc.rect(0, 0, 85, 25, "F");
 
-            // Infos
-            doc.setTextColor(10, 13, 18);
-            doc.setFontSize(16);
-            doc.text(dernierStagiaire.nomComplet.toUpperCase(), 42.5, 45, { align: "center" });
-            
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            doc.setTextColor(100, 100, 100);
-            doc.text("SERVICE ID : " + dernierStagiaire.service, 42.5, 53, { align: "center" });
+          doc.setTextColor(255, 255, 255);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(12);
+          doc.text("CENTRE HOSPITALIER", 42.5, 12, { align: "center" });
+          doc.setFontSize(8);
+          doc.text("CARTE D'ACCÈS STAGIAIRE", 42.5, 18, { align: "center" });
 
-            // QR Code Frame
-            doc.setDrawColor(200, 200, 200);
-            doc.rect(20, 62, 45, 45);
-            doc.addImage(qrImage, 'PNG', 22.5, 64.5, 40, 40);
+          // Infos
+          doc.setTextColor(10, 13, 18);
+          doc.setFontSize(16);
+          doc.text(dernierStagiaire.nomComplet.toUpperCase(), 42.5, 45, {
+            align: "center",
+          });
 
-            // Footer
-            doc.setFontSize(7);
-            doc.setTextColor(150, 150, 150);
-            doc.text("UUID: " + dernierStagiaire.id, 42.5, 114, { align: "center" });
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(100, 100, 100);
+          doc.text("SERVICE ID : " + dernierStagiaire.service, 42.5, 53, {
+            align: "center",
+          });
 
-            doc.save(`badge_${dernierStagiaire.nomComplet.replace(' ', '_')}.pdf`);
+          // QR Code Frame
+          doc.setDrawColor(200, 200, 200);
+          doc.rect(20, 62, 45, 45);
+          doc.addImage(qrImage, "PNG", 22.5, 64.5, 40, 40);
+
+          // Footer
+          doc.setFontSize(7);
+          doc.setTextColor(150, 150, 150);
+          doc.text("UUID: " + dernierStagiaire.id, 42.5, 114, {
+            align: "center",
+          });
+
+          doc.save(
+            `badge_${dernierStagiaire.nomComplet.replace(" ", "_")}.pdf`,
+          );
         }, 400);
-    }
-</script>
-
-</body>
+      }
+    </script>
+  </body>
 </html>
