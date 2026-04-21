@@ -2,44 +2,217 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard - CHU</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHU · Inscription Stagiaires</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 50px; }
-        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; }
-        h2 { color: #1e88e5; text-align: center; margin-bottom: 25px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        :root {
+            --bg: #0a0d12;
+            --surface: #12171f;
+            --surface2: #1a2130;
+            --border: #1f2d3d;
+            --accent: #00d4a8;
+            --accent-dim: rgba(0, 212, 168, 0.12);
+            --accent-glow: rgba(0, 212, 168, 0.35);
+            --danger: #ff4d6d;
+            --text: #e2e8f0;
+            --text-muted: #64748b;
+            --radius: 16px;
+            --radius-sm: 10px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: "DM Sans", sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* Background Grid Pattern */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(0, 212, 168, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 212, 168, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
+        }
+
+        .card {
+            background: var(--surface);
+            width: 100%;
+            max-width: 420px;
+            padding: 40px 30px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        /* Header */
+        header { text-align: center; margin-bottom: 30px; }
+
+        .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--accent-dim);
+            border: 1px solid rgba(0, 212, 168, 0.25);
+            border-radius: 100px;
+            padding: 6px 14px;
+            margin-bottom: 12px;
+        }
+
+        .logo-badge .dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        .logo-badge span {
+            font-family: "DM Mono", monospace;
+            font-size: 11px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        h2 {
+            font-family: "Syne", sans-serif;
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+
+        h2 em { font-style: normal; color: var(--accent); }
+
+        /* Form */
+        .form-group { margin-bottom: 20px; }
         
-        button { width: 100%; padding: 12px; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 10px; transition: 0.3s; }
-        .btn-add { background-color: #1e88e5; }
-        .btn-add:hover { background-color: #1565c0; }
-        
-        /* Style du bouton de téléchargement */
-        #downloadBtn { background-color: #2e7d32; display: none; margin-top: 20px; font-weight: bold; }
-        #downloadBtn:hover { background-color: #1b5e20; }
-        
-        #message { margin-top: 15px; text-align: center; font-weight: bold; }
-        #qrcode { display: none; } /* On cache le QR code brut */
+        label {
+            display: block;
+            font-size: 12px;
+            font-family: "DM Mono", monospace;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 0.05em;
+        }
+
+        input, select {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            padding: 14px;
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* Buttons */
+        button {
+            width: 100%;
+            padding: 16px;
+            border-radius: var(--radius-sm);
+            font-family: "DM Sans", sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-add {
+            background: var(--accent);
+            color: #001a14;
+            margin-top: 10px;
+        }
+
+        .btn-add:hover { background: #00f2bf; transform: translateY(-2px); }
+
+        #downloadBtn {
+            background: var(--surface2);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            margin-top: 20px;
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        #downloadBtn:hover {
+            background: var(--accent-dim);
+        }
+
+        /* Status & QR Hidden */
+        #message {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 14px;
+            min-height: 24px;
+        }
+
+        #qrcode { display: none; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        footer {
+            margin-top: 30px;
+            font-size: 11px;
+            color: var(--text-faint);
+            text-align: center;
+            font-family: "DM Mono", monospace;
+        }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Inscription Stagiaire</h2>
+    <header>
+        <div class="logo-badge">
+            <div class="dot"></div>
+            <span>Administration CHU</span>
+        </div>
+        <h2>Nouveau <em>Stagiaire</em></h2>
+    </header>
+
     <div class="form-group">
         <label>Prénom</label>
-        <input type="text" id="firstName" placeholder="Ex: Nouhaila">
+        <input type="text" id="firstName" placeholder="Prénom du stagiaire">
     </div>
+    
     <div class="form-group">
         <label>Nom</label>
-        <input type="text" id="lastName" placeholder="Ex: Touil">
+        <input type="text" id="lastName" placeholder="Nom de famille">
     </div>
+    
     <div class="form-group">
-        <label>Service (ID)</label>
+        <label>Service Assigné</label>
         <select id="deptId">
             <option value="1">1 - Urgences</option>
             <option value="2">2 - Radiologie</option>
@@ -49,13 +222,21 @@
         </select>
     </div>
     
-    <button class="btn-add" onclick="ajouterStagiaire()">Enregistrer le Stagiaire</button>
+    <button class="btn-add" onclick="ajouterStagiaire()">
+        <span>Enregistrer dans la base</span>
+    </button>
     
     <div id="message"></div>
     
-    <button id="downloadBtn" onclick="genererBadgePDF()">📥 Télécharger le Badge PDF</button>
+    <button id="downloadBtn" onclick="genererBadgePDF()">
+        📥 Télécharger le Badge
+    </button>
     
     <div id="qrcode"></div>
+    
+    <footer style="color: var(--text-muted); margin-top: 25px;">
+        CHU · Système de gestion v1.0
+    </footer>
 </div>
 
 <script>
@@ -66,6 +247,13 @@
         const nom = document.getElementById('lastName').value;
         const service = document.getElementById('deptId').value;
 
+        if(!prenom || !nom) {
+            const msgDiv = document.getElementById('message');
+            msgDiv.style.color = "var(--danger)";
+            msgDiv.innerText = "⚠️ Veuillez remplir tous les champs.";
+            return;
+        }
+
         const data = {
             first_name: prenom,
             last_name: nom,
@@ -74,8 +262,9 @@
 
         const msgDiv = document.getElementById('message');
         const dlBtn = document.getElementById('downloadBtn');
-        msgDiv.innerText = "Envoi en cours...";
-        dlBtn.style.display = "none"; // On cache le bouton si on fait une nouvelle inscription
+        msgDiv.style.color = "var(--text-muted)";
+        msgDiv.innerText = "Initialisation du transfert...";
+        dlBtn.style.display = "none";
 
         try {
             const response = await fetch('http://127.0.0.1:8000/interns/add', {
@@ -87,29 +276,26 @@
             const result = await response.json();
             
             if (response.ok) {
-                msgDiv.style.color = "green";
-                msgDiv.innerText = "✅ Stagiaire enregistré avec succès !";
+                msgDiv.style.color = "var(--accent)";
+                msgDiv.innerText = "✅ Stagiaire synchronisé avec succès";
                 
-                // On sauvegarde les infos pour le PDF
                 dernierStagiaire = {
                     nomComplet: prenom + " " + nom,
                     id: result.id,
                     service: service
                 };
 
-                // On affiche le bouton de téléchargement
-                dlBtn.style.display = "block";
+                dlBtn.style.display = "flex";
 
-                // Optionnel : vider les champs
                 document.getElementById('firstName').value = "";
                 document.getElementById('lastName').value = "";
             } else {
-                msgDiv.style.color = "red";
+                msgDiv.style.color = "var(--danger)";
                 msgDiv.innerText = "❌ Erreur : " + (result.error || "Problème serveur");
             }
         } catch (error) {
-            msgDiv.style.color = "red";
-            msgDiv.innerText = "❌ Serveur non joignable (Lancez Uvicorn !)";
+            msgDiv.style.color = "var(--danger)";
+            msgDiv.innerText = "❌ Serveur hors ligne (FastAPI)";
         }
     }
 
@@ -120,56 +306,60 @@
         const doc = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
-            format: [85, 120] // Format badge standard
+            format: [85, 120]
         });
 
-        // 1. Générer le QR Code en image
         const qrDiv = document.getElementById('qrcode');
-        qrDiv.innerHTML = ""; // Vider le précédent
+        qrDiv.innerHTML = "";
         const qrcode = new QRCode(qrDiv, {
             text: dernierStagiaire.id,
-            width: 128,
-            height: 128
+            width: 256,
+            height: 256,
+            colorDark : "#0a0d12",
+            colorLight : "#ffffff",
         });
 
-        // Laisser un petit délai pour que le QR code se génère avant de créer le PDF
         setTimeout(() => {
             const qrCanvas = qrDiv.querySelector('canvas');
             const qrImage = qrCanvas.toDataURL("image/png");
 
-            // --- DESIGN DU BADGE ---
-            // Bordure bleue
-            doc.setDrawColor(30, 136, 229);
-            doc.setLineWidth(1);
-            doc.roundedRect(5, 5, 75, 110, 3, 3);
+            // Fond
+            doc.setFillColor(245, 247, 250);
+            doc.rect(0, 0, 85, 120, 'F');
 
-            // Bandeau Entête
+            // Accent Top (Bleu médical pour le badge physique)
             doc.setFillColor(30, 136, 229);
-            doc.rect(5, 5, 75, 15, 'F');
+            doc.rect(0, 0, 85, 25, 'F');
+            
             doc.setTextColor(255, 255, 255);
-            doc.setFontSize(10);
-            doc.text("CENTRE HOSPITALIER - CHU", 42.5, 15, { align: "center" });
-
-            // Infos Stagiaire
-            doc.setTextColor(0, 0, 0);
-            doc.setFontSize(14);
             doc.setFont("helvetica", "bold");
-            doc.text(dernierStagiaire.nomComplet.toUpperCase(), 42.5, 35, { align: "center" });
+            doc.setFontSize(12);
+            doc.text("CENTRE HOSPITALIER", 42.5, 12, { align: "center" });
+            doc.setFontSize(8);
+            doc.text("CARTE D'ACCÈS STAGIAIRE", 42.5, 18, { align: "center" });
+
+            // Infos
+            doc.setTextColor(10, 13, 18);
+            doc.setFontSize(16);
+            doc.text(dernierStagiaire.nomComplet.toUpperCase(), 42.5, 45, { align: "center" });
             
             doc.setFontSize(10);
-            doc.text("SERVICE ID : " + dernierStagiaire.service, 42.5, 45, { align: "center" });
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(100, 100, 100);
+            doc.text("SERVICE ID : " + dernierStagiaire.service, 42.5, 53, { align: "center" });
 
-            // QR Code
-            doc.addImage(qrImage, 'PNG', 22.5, 55, 40, 40);
+            // QR Code Frame
+            doc.setDrawColor(200, 200, 200);
+            doc.rect(20, 62, 45, 45);
+            doc.addImage(qrImage, 'PNG', 22.5, 64.5, 40, 40);
 
             // Footer
             doc.setFontSize(7);
             doc.setTextColor(150, 150, 150);
-            doc.text("ID: " + dernierStagiaire.id, 42.5, 105, { align: "center" });
+            doc.text("UUID: " + dernierStagiaire.id, 42.5, 114, { align: "center" });
 
-            // Téléchargement
             doc.save(`badge_${dernierStagiaire.nomComplet.replace(' ', '_')}.pdf`);
-        }, 300);
+        }, 400);
     }
 </script>
 
