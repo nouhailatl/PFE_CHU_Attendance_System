@@ -343,6 +343,35 @@
         }
       }
 
+      /* Camera selector dropdown */
+      .cam-select-wrap {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      #camSelect {
+        flex: 1;
+        padding: 10px 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        color: var(--text);
+        font-family: "DM Sans", sans-serif;
+        font-size: 13px;
+        appearance: none;
+        cursor: pointer;
+      }
+      #camSelect:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .cam-label {
+        font-size: 12px;
+        color: var(--text-muted);
+        white-space: nowrap;
+      }
+
       /* ── BUTTONS ── */
       .btn-row {
         width: 100%;
@@ -617,6 +646,13 @@
         </div>
       </div>
 
+      <!-- Camera selector (shown when multiple cameras are available) -->
+
+      <div class="cam-select-wrap" id="camSelectWrap" style="display: none">
+        <span class="cam-label">Caméra :</span>
+        <select id="camSelect"></select>
+      </div>
+
       <!-- BUTTONS -->
       <div class="btn-row">
         <button class="btn btn-start" id="btnStart" onclick="startScanner()">
@@ -650,13 +686,14 @@
     </div>
 
     <script>
-      const API_URL = "/scan"; // Adjust if FastAPI is on a different host/port
+      const API_URL = window.location.origin + "/scan";
       const RESUME_DELAY = 10000; // ms before camera resumes after a scan
 
       let qrCode = null;
       let scanLocked = false;
       let resumeTimer = null;
       let isRunning = false;
+      let availableCameras = [];
 
       // ── STATUS ─────────────────────────────────────────────────────────────────
       function setStatus(type, icon, label, msg) {
@@ -681,6 +718,39 @@
         document.getElementById("btnStop").disabled = !running;
       }
 
+      // ── POPULATE CAMERA LIST ───────────────────────────────────────────────────
+      async function populateCameraList() {
+        try {
+          const tmp = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
+          tmp.getTracks().forEach((t) => t.stop());
+
+          availableCameras = await Html5Qrcode.getCameras();
+          if (!availableCameras || availableCameras.length === 0) return;
+
+          const sel = document.getElementById("camSelect");
+          sel.innerHTML = "";
+          availableCameras.forEach((cam, i) => {
+            const opt = document.createElement("option");
+            opt.value = cam.id;
+            const label = cam.label || `Caméra ${i + 1}`;
+            const isRear = /back|rear|environment|arrière/i.test(label);
+            opt.textContent = isRear ? `📷 ${label} (arrière)` : `📷 ${label}`;
+            opt.dataset.isRear = isRear;
+            sel.appendChild(opt);
+          });
+
+          const rearOption = Array.from(sel.options).find(
+            (o) => o.dataset.isRear === "true",
+          );
+          if (rearOption) rearOption.selected = true;
+
+          if (availableCameras.length > 1) {
+            document.getElementById("camSelectWrap").style.display = "flex";
+          }
+        } catch (e) {}
+      }
       // ── START ──────────────────────────────────────────────────────────────────
       async function startScanner() {
         if (isRunning) return;
@@ -706,6 +776,9 @@
           );
           return;
         }
+
+        // Populate camera list after getting permission
+        await populateCameraList();
 
         // Step 2: enumerate cameras
         setStatus("", "⏳", "Initialisation", "Recherche des caméras…");

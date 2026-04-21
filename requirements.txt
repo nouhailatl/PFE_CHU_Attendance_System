@@ -1,7 +1,22 @@
+# ── Web API ───────────────────────────────────────────────
 fastapi
 uvicorn
+
+# ── Database ──────────────────────────────────────────────
 sqlalchemy
+
+# ── Data validation ───────────────────────────────────────
 pydantic
+
+# ── ETL pipeline (etl/transform.py) ───────────────────────
+pandas          # required for all DataFrame operations
+
+# ── QR code & badge generation (generate_qr.py) ───────────
 qrcode
 reportlab
-pillow
+pillow          # required by qrcode for image generation (make_image())
+
+# ── Timezone (main.py) ────────────────────────────────────
+# zoneinfo is stdlib in Python >= 3.9 — no install needed.
+# pytz is the fallback for older Python versions.
+#pytz            # fallback timezone support

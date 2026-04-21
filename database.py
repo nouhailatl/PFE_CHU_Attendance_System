@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import Float
 import uuid
 from datetime import datetime
+from sqlalchemy import Boolean
 
 # Pour le test, on utilise SQLite (un fichier local), 
 # mais vous passerez à PostgreSQL plus tard comme prévu [cite: 41]
@@ -42,6 +43,9 @@ class DailyStatus(Base):
     departure_time = Column(DateTime, nullable=True)
     status = Column(String) # "Présent", "Absent", "Retard"
     work_duration = Column(Float, default=0.0) # Heures travaillées
+    checkin_status  = Column(String,  nullable=True)   # punctuality detail
+    checkout_status = Column(String,  nullable=True)   # checkout detail
+    needs_attention = Column(Boolean, default=False)   # dashboard alarm flag
 
     # Cette ligne crée physiquement les tables dans le fichier .db
 Base.metadata.create_all(bind=engine)
