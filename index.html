@@ -294,16 +294,15 @@
           console.error("Could not load departments", e);
         }
       }
-
-      window.addEventListener("DOMContentLoaded", loadDepartments);
-
       // Call it on page load
       window.addEventListener("DOMContentLoaded", loadDepartments);
 
       async function ajouterStagiaire() {
         const prenom = document.getElementById("firstName").value;
         const nom = document.getElementById("lastName").value;
-        const service = document.getElementById("deptId").value;
+        const sel = document.getElementById("deptId");
+        const service = sel.value;
+        const serviceName = sel.options[sel.selectedIndex].text;
 
         if (!prenom || !nom) {
           const msgDiv = document.getElementById("message");
@@ -340,7 +339,7 @@
             dernierStagiaire = {
               nomComplet: prenom + " " + nom,
               id: result.id,
-              service: service,
+              service: serviceName,
             };
 
             dlBtn.style.display = "flex";
@@ -407,7 +406,7 @@
           doc.setFontSize(10);
           doc.setFont("helvetica", "normal");
           doc.setTextColor(100, 100, 100);
-          doc.text("SERVICE ID : " + dernierStagiaire.service, 42.5, 53, {
+          doc.text("SERVICE : " + dernierStagiaire.service, 42.5, 53, {
             align: "center",
           });
 
