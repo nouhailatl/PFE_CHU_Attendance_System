@@ -38,7 +38,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from database import SessionLocal, Intern, DailyStatus, Department
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
+from typing import Optional
 from datetime import datetime, time, timezone, timedelta
 import uuid
 
@@ -163,7 +164,30 @@ def get_today_record(intern_id: str, today: datetime.date, db: Session):
         DailyStatus.date <  datetime(today.year, today.month, today.day, 23, 59, 59),
     ).first()
 
+class DailyStatusOut(BaseModel):
+    id: str
+    intern_id: str
+    status: Optional[str]
+    checkin_status: Optional[str]
+    checkout_status: Optional[str]
+    needs_attention: Optional[bool]
+    work_duration: Optional[float]
 
+    # These will be converted from UTC → UTC+1 before sending
+    date: Optional[datetime]
+    arrival_time: Optional[datetime]
+    departure_time: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+    def model_post_init(self, __context):
+        # Convert all datetime fields to Morocco local time
+        if self.date:
+            self.date = to_local(self.date)
+        if self.arrival_time:
+            self.arrival_time = to_local(self.arrival_time)
+        if self.departure_time:
+            self.departure_time = to_local(self.departure_time)
 # ── APP SETUP ─────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="CHU Plateforme de Pointage")
@@ -350,7 +374,7 @@ def list_interns(db: Session = Depends(get_db)):
     return db.query(Intern).all()
 
 
-@app.get("/dashboard/history")
+@app.get("/dashboard/history", response_model=list[DailyStatusOut])
 def get_dashboard_data(db: Session = Depends(get_db)):
     return db.query(DailyStatus).all()
 
