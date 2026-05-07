@@ -1,39 +1,44 @@
-from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Float
+from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey, Float, Boolean
+from sqlalchemy.orm import declarative_base, sessionmaker
 import uuid
 from datetime import datetime
-from sqlalchemy import Boolean
 import os
 from dotenv import load_dotenv
 
-# Pour le test, on utilise SQLite (un fichier local), 
-# mais vous passerez à PostgreSQL plus tard comme prévu 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///./hospital_stage.db"  # fallback for local dev only
-)
-
+# 1. CHARGER le .env EN PREMIER
 load_dotenv()
 
+# 2. RÉCUPÉRER l'URL (Neon ou SQLite en secours)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Si on est sur Neon, on s'assure d'utiliser le bon préfixe pour SQLAlchemy
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Fallback si le .env est mal lu
+if not DATABASE_URL:
+    DATABASE_URL = "sqlite:///./hospital_stage.db"
+
+# 3. CRÉATION DE L'ENGINE
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,        # ← reconnects on stale connections
-    pool_recycle=300,          # ← recycle connections every 5 min
+    pool_pre_ping=True,
+    pool_recycle=300,
 )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# --- MODÈLES ---
 
 class Department(Base):
     __tablename__ = "departments"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, unique=True, nullable=False) # Ex: Urgences
+    name = Column(String, unique=True, nullable=False)
 
 class Intern(Base):
     __tablename__ = "interns"
-    # L'ID ici doit correspondre à l'UUID du QR code ! [cite: 23]
-    id = Column(String, primary_key=True) 
+    id = Column(String, primary_key=True) # Correspond à l'UUID du QR code
     first_name = Column(String)
     last_name = Column(String)
     department_id = Column(String, ForeignKey("departments.id"))
@@ -42,8 +47,8 @@ class AttendanceEvent(Base):
     __tablename__ = "attendance_events"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     intern_id = Column(String, ForeignKey("interns.id"))
-    timestamp = Column(DateTime, default=datetime.utcnow) # L'heure du scan
-    type = Column(String) # "check-in" ou "check-out" [cite: 27]2
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    type = Column(String) # "check-in" ou "check-out"
 
 class DailyStatus(Base):
     __tablename__ = "daily_status"
@@ -52,12 +57,12 @@ class DailyStatus(Base):
     date = Column(DateTime, default=datetime.utcnow)
     arrival_time = Column(DateTime, nullable=True)
     departure_time = Column(DateTime, nullable=True)
-    status = Column(String) # "Présent", "Absent", "Retard"
-    work_duration = Column(Float, default=0.0) # Heures travaillées
-    checkin_status  = Column(String,  nullable=True)   # punctuality detail
-    checkout_status = Column(String,  nullable=True)   # checkout detail
-    needs_attention = Column(Boolean, default=False)   # dashboard alarm flag
+    status = Column(String) 
+    work_duration = Column(Float, default=0.0)
+    checkin_status  = Column(String,  nullable=True)
+    checkout_status = Column(String,  nullable=True)
+    needs_attention = Column(Boolean, default=False)
 
-    # Cette ligne crée physiquement les tables dans le fichier .db
+# 4. CRÉATION DES TABLES
 Base.metadata.create_all(bind=engine)
-print("✅ La base de données et les tables ont été créées avec succès !")
+print(f"✅ Connecté à : {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'SQLite local'}")

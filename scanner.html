@@ -686,9 +686,8 @@
     </div>
 
     <script>
-      const API_URL = window.location.origin + "/scan";
+      const API_URL = "http://127.0.0.1:8000/scan";
       const RESUME_DELAY = 10000; // ms before camera resumes after a scan
-
       let qrCode = null;
       let scanLocked = false;
       let resumeTimer = null;
