@@ -24,3 +24,9 @@ pillow          # required by qrcode for image generation (make_image())
 # PostgreSQL support (for production deployment)
 psycopg2-binary
 python-dotenv
+
+python-dotenv
+streamlit
+plotly
+pandas
+sqlalchemy
