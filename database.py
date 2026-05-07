@@ -5,50 +5,57 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 
-# 1. CHARGER le .env EN PREMIER
+# 1. Load .env FIRST before reading any env variable
 load_dotenv()
 
-# 2. RÉCUPÉRER l'URL (Neon ou SQLite en secours)
+# 2. Get DATABASE_URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Si on est sur Neon, on s'assure d'utiliser le bon préfixe pour SQLAlchemy
+# Fix Neon/Heroku postgres:// → postgresql:// (SQLAlchemy requires the latter)
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Fallback si le .env est mal lu
+# Fallback to local SQLite if .env is missing or empty
 if not DATABASE_URL:
     DATABASE_URL = "sqlite:///./hospital_stage.db"
 
-# 3. CRÉATION DE L'ENGINE
+# 3. Create engine
+is_postgres = DATABASE_URL.startswith("postgresql")
+
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,
+    connect_args={"options": "-c timezone=UTC"} if is_postgres else {}
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- MODÈLES ---
+
+# --- MODELS ---
 
 class Department(Base):
     __tablename__ = "departments"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, unique=True, nullable=False)
 
+
 class Intern(Base):
     __tablename__ = "interns"
-    id = Column(String, primary_key=True) # Correspond à l'UUID du QR code
+    id = Column(String, primary_key=True)  # matches the QR code UUID
     first_name = Column(String)
     last_name = Column(String)
     department_id = Column(String, ForeignKey("departments.id"))
+
 
 class AttendanceEvent(Base):
     __tablename__ = "attendance_events"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     intern_id = Column(String, ForeignKey("interns.id"))
     timestamp = Column(DateTime, default=datetime.utcnow)
-    type = Column(String) # "check-in" ou "check-out"
+    type = Column(String)  # "check-in" or "check-out"
+
 
 class DailyStatus(Base):
     __tablename__ = "daily_status"
@@ -57,12 +64,13 @@ class DailyStatus(Base):
     date = Column(DateTime, default=datetime.utcnow)
     arrival_time = Column(DateTime, nullable=True)
     departure_time = Column(DateTime, nullable=True)
-    status = Column(String) 
+    status = Column(String)
     work_duration = Column(Float, default=0.0)
-    checkin_status  = Column(String,  nullable=True)
-    checkout_status = Column(String,  nullable=True)
+    checkin_status  = Column(String, nullable=True)
+    checkout_status = Column(String, nullable=True)
     needs_attention = Column(Boolean, default=False)
 
-# 4. CRÉATION DES TABLES
+
+# 4. Create all tables
 Base.metadata.create_all(bind=engine)
 print(f"✅ Connecté à : {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'SQLite local'}")
