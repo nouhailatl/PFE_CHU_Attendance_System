@@ -37,7 +37,16 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from database import SessionLocal, Intern, DailyStatus, Department
+from database import SessionLocal, Intern, DailyStatus, Department, Admin
+from schemas import LoginRequest, InternCreate
+from auth import (                        
+    get_current_admin,
+    require_super_admin,
+    verify_password,
+    create_access_token,
+    hash_password,
+    AdminRole
+)
 from pydantic import BaseModel, computed_field
 from typing import Optional
 from datetime import datetime, time, timezone, timedelta
@@ -213,10 +222,10 @@ class ScanRequest(BaseModel):
     intern_id: str
 
 
-class InternCreate(BaseModel):
-    first_name: str
-    last_name: str
-    department_id: str
+# class InternCreate(BaseModel):
+    # first_name: str
+    # last_name: str
+    # department_id: str
 
 
 # ── /scan ─────────────────────────────────────────────────────────────────────
@@ -320,7 +329,10 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
 # ── /admin/mark-absences ──────────────────────────────────────────────────────
 
 @app.post("/admin/mark-absences", tags=["Administration"])
-def mark_absences(db: Session = Depends(get_db)):
+def mark_absences(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
     """
     Auto-record 'absent' for every intern with no scan today.
     Call once at end of day (e.g. cron at 18:00, or a dashboard button).
@@ -380,7 +392,11 @@ def get_dashboard_data(db: Session = Depends(get_db)):
 
 
 @app.post("/interns/add", tags=["Administration"])
-def add_new_intern(intern_data: InternCreate, db: Session = Depends(get_db)):
+def add_new_intern(
+    intern_data: InternCreate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
     new_uuid = str(uuid.uuid4())
     new_intern = Intern(
         id=new_uuid,
@@ -410,10 +426,61 @@ def list_departments(db: Session = Depends(get_db)):
     return db.query(Department).all()
 
 @app.delete("/interns/{intern_id}", tags=["Administration"])
-def delete_intern(intern_id: str, db: Session = Depends(get_db)):
+def delete_intern(
+    intern_id: str,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin)
+):
     intern = db.query(Intern).filter(Intern.id == intern_id).first()
     if not intern:
         raise HTTPException(status_code=404, detail="Stagiaire non trouvé")
     db.delete(intern)
     db.commit()
     return {"message": f"Stagiaire {intern.first_name} supprimé"}
+
+
+# ── AUTH ENDPOINTS ────────────────────────────────────────────────────────────
+
+@app.post("/auth/login", tags=["Authentication"])
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    admin = db.query(Admin).filter(Admin.username == request.username).first()
+    
+    if not admin or not verify_password(request.password, admin.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Nom d'utilisateur ou mot de passe incorrect"
+        )
+    
+    token = create_access_token(
+        username=admin.username,
+        role=AdminRole(admin.role),
+        department_id=admin.department_id
+    )
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "role": admin.role,
+        "department_id": admin.department_id
+    }
+
+
+@app.post("/auth/seed-admin", tags=["Authentication"])
+def seed_admin(db: Session = Depends(get_db)):
+    any_admin = db.query(Admin).first()
+    if any_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Setup already completed — this endpoint is permanently locked"
+        )
+    
+    new_admin = Admin(
+        username="admin",
+        hashed_password=hash_password("admin123"),
+        role=AdminRole.SUPER_ADMIN.value,
+        department_id=None
+    )
+    db.add(new_admin)
+    db.commit()
+    
+    return {"message": "✅ Super admin created successfully — change your password after first login"}

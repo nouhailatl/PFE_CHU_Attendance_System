@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 
+
 # 1. Load .env FIRST before reading any env variable
 load_dotenv()
 
@@ -28,9 +29,9 @@ engine = create_engine(
     pool_recycle=300,
     connect_args={"options": "-c timezone=UTC"} if is_postgres else {}
 )
-
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 
 # --- MODELS ---
@@ -56,7 +57,6 @@ class AttendanceEvent(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     type = Column(String)  # "check-in" or "check-out"
 
-
 class DailyStatus(Base):
     __tablename__ = "daily_status"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -71,6 +71,17 @@ class DailyStatus(Base):
     needs_attention = Column(Boolean, default=False)
 
 
+
 # 4. Create all tables
+
+class Admin(Base):
+    __tablename__ = "admins"
+    id              = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    username        = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role            = Column(String, nullable=False)
+    department_id   = Column(String, ForeignKey("departments.id"), nullable=True)
+
+
 Base.metadata.create_all(bind=engine)
 print(f"✅ Connecté à : {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'SQLite local'}")
