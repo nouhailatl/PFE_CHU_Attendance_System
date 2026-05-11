@@ -33,3 +33,5 @@ sqlalchemy
 # JWT
 python-jose[cryptography]    # JWT creation & verification
 passlib[bcrypt]              # password hashing
+#excel
+openpyxl

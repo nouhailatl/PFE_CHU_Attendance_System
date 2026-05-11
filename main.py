@@ -38,7 +38,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from database import SessionLocal, Intern, DailyStatus, Department, Admin
-from schemas import LoginRequest, InternCreate
+from schemas import LoginRequest, InternCreate, CreateAdminRequest, ChangePasswordRequest
 from auth import (                        
     get_current_admin,
     require_super_admin,
@@ -51,6 +51,12 @@ from pydantic import BaseModel, computed_field
 from typing import Optional
 from datetime import datetime, time, timezone, timedelta
 import uuid
+
+from excel_export import export_to_excel
+import threading
+
+def export_in_background():
+    threading.Thread(target=export_to_excel, daemon=True).start()
 
 # ── TIMEZONE ──────────────────────────────────────────────────────────────────
 # Morocco has been permanently on UTC+1 since October 2018 (no DST).
@@ -267,12 +273,17 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
         )
         db.add(daily)
         db.commit()
+        
 
         labels = {
             "on_time":       "✅ À l'heure",
             "late":          "⏰ En retard",
             "missed_checkin":"⚠️ Hors créneau — enregistré comme missed check-in",
         }
+
+       
+        export_in_background()   # ← la nouvell ligne
+    
         return {
             "event":          "check_in",
             "checkin_status": checkin_status,
@@ -311,6 +322,9 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
             "early_checkout":  f"⚠️ Départ anticipé à {now.strftime('%H:%M')} — {duration}h (visible sur dashboard)",
             "missed_checkout": f"🔴 Hors créneau à {now.strftime('%H:%M')} — {duration}h travaillées",
         }
+
+        export_in_background()
+        
         return {
             "event":            "check_out",
             "checkout_status":  checkout_status,
@@ -484,3 +498,138 @@ def seed_admin(db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": "✅ Super admin created successfully — change your password after first login"}
+
+@app.post("/auth/create-admin", tags=["Authentication"])
+def create_admin(
+    request: CreateAdminRequest,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin)   # only super_admin can create accounts
+):
+    """
+    Create a new admin or supervisor account.
+    - Only callable by a logged-in super_admin.
+    - Supervisors MUST have a department_id (UUID of their department).
+    - Super admins have department_id = None.
+    """
+    # Validate role value
+    try:
+        role = AdminRole(request.role)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Rôle invalide. Valeurs acceptées : {[r.value for r in AdminRole]}"
+        )
+
+    # Supervisors must be linked to a department
+    if role == AdminRole.SUPERVISOR and not request.department_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Un superviseur doit être assigné à un département"
+        )
+
+    # Super admins must NOT have a department (they see everything)
+    if role == AdminRole.SUPER_ADMIN and request.department_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Un super admin ne peut pas être lié à un département spécifique"
+        )
+
+    # Check username uniqueness
+    existing = db.query(Admin).filter(Admin.username == request.username).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Le nom d'utilisateur '{request.username}' est déjà pris"
+        )
+
+    # Verify department exists (for supervisors)
+    if request.department_id:
+        dept = db.query(Department).filter(Department.id == request.department_id).first()
+        if not dept:
+            raise HTTPException(
+                status_code=404,
+                detail="Département introuvable — vérifiez l'UUID"
+            )
+
+    new_admin = Admin(
+        username=request.username,
+        hashed_password=hash_password(request.password),
+        role=role.value,
+        department_id=request.department_id
+    )
+    db.add(new_admin)
+    db.commit()
+
+    return {
+        "message":       f" Compte '{request.username}' créé avec succès",
+        "username":      request.username,
+        "role":          role.value,
+        "department_id": request.department_id,
+    }
+
+
+@app.get("/auth/admins", tags=["Authentication"])
+def list_admins(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin)
+):
+    """List all admin accounts (super_admin only). Passwords are never returned."""
+    admins = db.query(Admin).all()
+    return [
+        {
+            "id":            a.id,
+            "username":      a.username,
+            "role":          a.role,
+            "department_id": a.department_id,
+        }
+        for a in admins
+    ]
+
+
+@app.delete("/auth/admins/{admin_id}", tags=["Authentication"])
+def delete_admin(
+    admin_id: str,
+    db: Session = Depends(get_db),
+    current: Admin = Depends(require_super_admin)
+):
+    """Delete an admin account. A super_admin cannot delete their own account."""
+    if admin_id == current.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Vous ne pouvez pas supprimer votre propre compte"
+        )
+
+    target = db.query(Admin).filter(Admin.id == admin_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Compte introuvable")
+
+    db.delete(target)
+    db.commit()
+    return {"message": f" Compte '{target.username}' supprimé"}
+
+
+@app.post("/auth/change-password", tags=["Authentication"])
+def change_password(
+    request: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current: Admin = Depends(get_current_admin)   # any logged-in admin
+):
+    """
+    Any admin can change their OWN password.
+    They must provide their current password to confirm identity.
+    """
+    if not verify_password(request.current_password, current.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Mot de passe actuel incorrect"
+        )
+
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Le nouveau mot de passe doit contenir au moins 8 caractères"
+        )
+
+    current.hashed_password = hash_password(request.new_password)
+    db.commit()
+    return {"message": " Mot de passe mis à jour avec succès"}
