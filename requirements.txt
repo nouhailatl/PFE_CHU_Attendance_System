@@ -25,13 +25,18 @@ pillow          # required by qrcode for image generation (make_image())
 psycopg2-binary
 python-dotenv
 
-python-dotenv
+# Dashboard
 streamlit
 plotly
-pandas
-sqlalchemy
+
 # JWT
 python-jose[cryptography]    # JWT creation & verification
 passlib[bcrypt]              # password hashing
 #excel
 openpyxl
+
+# ML 
+scikit-learn
+joblib
+matplotlib
+imbalanced-learn
