@@ -1,0 +1,2961 @@
+<!doctype html>
+<html class="dark" lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GST TTA — STS</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      :root {
+        --bg: #0a0d12;
+        --surface: #12171f;
+        --surface2: #1a2130;
+        --surface3: #19211e;
+        --border: #1f2d3d;
+        --border2: #3b4a44;
+        --primary: #45f1c3;
+        --primary-d: rgba(69, 241, 195, 0.1);
+        --primary-g: rgba(69, 241, 195, 0.25);
+        --error: #ffb4ab;
+        --error-d: rgba(255, 180, 171, 0.1);
+        --warn: #ffcea6;
+        --warn-d: rgba(255, 206, 166, 0.1);
+        --text: #dce4df;
+        --text-m: #bacac2;
+        --text-f: #85948d;
+        --on-primary: #00382a;
+        --radius: 10px;
+        --radius-lg: 16px;
+        --sidebar-w: 260px;
+      }
+      *,
+      ::before,
+      ::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        font-size: 16px;
+      }
+      body {
+        background: var(--bg);
+        background-image: radial-gradient(
+          rgba(0, 212, 168, 0.025) 1px,
+          transparent 0
+        );
+        background-size: 24px 24px;
+        color: var(--text);
+        font-family: "DM Sans", sans-serif;
+        overflow-x: hidden;
+        min-height: 100vh;
+      }
+
+      /* ── SCROLLBAR ── */
+      ::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--primary);
+      }
+
+      /* ── MATERIAL ICONS ── */
+      .material-symbols-outlined {
+        font-family: "Material Symbols Outlined";
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 300,
+          "GRAD" 0,
+          "opsz" 24;
+        font-size: 22px;
+        line-height: 1;
+        display: inline-block;
+        vertical-align: middle;
+      }
+
+      /* ═══════════════════════════════════════
+       LOGIN OVERLAY
+    ═══════════════════════════════════════ */
+      #login-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: flex;
+        flex-direction: row;
+        background: var(--bg);
+      }
+      #login-overlay.hidden {
+        display: none !important;
+      }
+
+      .login-left {
+        flex: 1;
+        background: var(--surface);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(28px, 5vw, 48px) clamp(28px, 5vw, 56px);
+        position: relative;
+        overflow: hidden;
+      }
+      .login-left::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: 0.055;
+        background-image:
+          linear-gradient(rgba(69, 241, 195, 0.5) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(69, 241, 195, 0.5) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
+      }
+      .login-left::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: min(120%, 720px);
+        height: min(85%, 520px);
+        background: radial-gradient(
+          ellipse at 50% 42%,
+          rgba(69, 241, 195, 0.07) 0%,
+          transparent 58%
+        );
+        pointer-events: none;
+        z-index: 0;
+      }
+      .login-branding {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 420px;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1.25rem;
+      }
+      .login-brand-eyebrow {
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(101, 220, 200, 0.78);
+        margin: 0;
+        line-height: 1.4;
+      }
+      .login-logo-well {
+        position: relative;
+        width: 100%;
+        max-width: 400px;
+        padding: clamp(18px, 3.5vw, 26px) clamp(20px, 4vw, 28px);
+        border-radius: var(--radius-lg);
+        background:
+          radial-gradient(
+            ellipse 95% 80% at 50% 35%,
+            rgba(69, 241, 195, 0.11) 0%,
+            transparent 52%
+          ),
+          linear-gradient(
+            165deg,
+            rgba(22, 28, 38, 0.92) 0%,
+            rgba(10, 14, 22, 0.97) 100%
+          );
+        border: 1px solid rgba(69, 241, 195, 0.22);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.05),
+          0 1px 0 rgba(0, 0, 0, 0.35),
+          0 20px 48px rgba(0, 0, 0, 0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .login-brand-logo-img {
+        position: relative;
+        z-index: 1;
+        display: block;
+        width: 100%;
+        max-width: min(372px, 100%);
+        height: auto;
+        max-height: 216px;
+        object-fit: contain;
+        filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45))
+          drop-shadow(0 0 24px rgba(69, 241, 195, 0.08));
+      }
+      .login-brand-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        padding-top: 0.125rem;
+      }
+      .login-branding h1 {
+        font-family: "Syne", sans-serif;
+        font-size: clamp(1.875rem, 4vw, 2.25rem);
+        font-weight: 800;
+        color: #f4f9f7;
+        line-height: 1.14;
+        letter-spacing: -0.02em;
+        margin: 0;
+      }
+      .login-branding h1 em {
+        font-style: normal;
+        color: var(--primary);
+      }
+      .login-branding p {
+        margin: 0;
+        padding-top: 0.35rem;
+        color: rgba(186, 202, 194, 0.95);
+        font-size: 15px;
+        line-height: 1.65;
+      }
+      .login-branding .badge-live {
+        align-self: flex-start;
+      }
+      .badge-live {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(69, 241, 195, 0.08);
+        border: 1px solid rgba(69, 241, 195, 0.28);
+        border-radius: 100px;
+        padding: 6px 16px;
+      }
+      .badge-live .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--primary);
+        animation: blink 2s ease-in-out infinite;
+      }
+      .badge-live span {
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        color: var(--primary);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.4;
+          transform: scale(0.8);
+        }
+      }
+
+      .login-wave {
+        position: absolute;
+        right: -1px;
+        top: 0;
+        height: 100%;
+        width: 100px;
+        fill: var(--surface3);
+      }
+
+      .login-right {
+        flex: 1;
+        background: var(--surface3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+      }
+      .login-form-wrap {
+        width: 100%;
+        max-width: 420px;
+      }
+      .login-form-wrap h2 {
+        font-family: "Syne", sans-serif;
+        font-size: 26px;
+        font-weight: 700;
+        color: #fff;
+        margin-bottom: 6px;
+      }
+      .login-form-wrap p {
+        color: var(--text-m);
+        font-size: 14px;
+        margin-bottom: 32px;
+      }
+
+      .field {
+        margin-bottom: 20px;
+      }
+      .field label {
+        display: block;
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-m);
+        margin-bottom: 8px;
+      }
+      .input-wrap {
+        position: relative;
+      }
+      .input-wrap .icon {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-f);
+        font-size: 18px;
+      }
+      .input-wrap input {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid var(--border2);
+        border-radius: var(--radius);
+        padding: 13px 14px 13px 44px;
+        color: var(--text);
+        font-size: 14px;
+        font-family: "DM Sans", sans-serif;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+        outline: none;
+      }
+      .input-wrap input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(69, 241, 195, 0.12);
+      }
+      .input-wrap input::placeholder {
+        color: var(--text-f);
+        opacity: 0.7;
+      }
+
+      .btn-login {
+        width: 100%;
+        background: var(--primary);
+        color: var(--on-primary);
+        border: none;
+        border-radius: var(--radius);
+        padding: 14px 24px;
+        font-family: "DM Sans", sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition:
+          filter 0.2s,
+          transform 0.1s;
+        margin-top: 28px;
+      }
+      .btn-login:hover {
+        filter: brightness(1.1);
+      }
+      .btn-login:active {
+        transform: scale(0.98);
+      }
+      .btn-login:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .login-error {
+        background: var(--error-d);
+        border: 1px solid var(--error);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+        color: var(--error);
+        font-size: 13px;
+        margin-bottom: 16px;
+        display: none;
+      }
+      .login-error.visible {
+        display: block;
+      }
+
+      .login-footer {
+        margin-top: 40px;
+        padding-top: 28px;
+        border-top: 1px solid var(--border2);
+        text-align: center;
+      }
+      .login-footer p {
+        color: var(--text-f);
+        font-size: 12px;
+      }
+
+      /* ═══════════════════════════════════════
+       APP LAYOUT
+    ═══════════════════════════════════════ */
+      #app {
+        display: none;
+      }
+      #app.visible {
+        display: block;
+      }
+
+      /* ── SIDEBAR ── */
+      #sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: var(--sidebar-w);
+        background: var(--bg);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        padding: 24px 12px;
+        z-index: 50;
+        overflow: hidden;
+      }
+      .sidebar-logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 8px;
+        margin-bottom: 28px;
+      }
+      .sidebar-logo-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: var(--primary-d);
+        border: 1px solid var(--primary-g);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .sidebar-logo-icon svg,
+      .sidebar-logo-icon img {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
+      }
+      .sidebar-logo-text {
+        font-family: "Syne", sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .sidebar-logo-text span {
+        display: block;
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        color: var(--primary);
+        letter-spacing: 0.1em;
+        font-weight: 500;
+        margin-top: 1px;
+      }
+
+      /* SIDEBAR FOOTER */
+      .sidebar-footer {
+        margin-top: auto;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+        text-align: center;
+      }
+      .sidebar-footer p {
+        color: var(--text-f);
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      .sidebar-section-label {
+        font-family: "DM Mono", monospace;
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        color: var(--text-f);
+        padding: 0 10px;
+        margin: 16px 0 6px;
+      }
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 10px;
+        border-radius: var(--radius);
+        border: none;
+        background: transparent;
+        color: var(--text-m);
+        width: 100%;
+        font-family: "DM Sans", sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: left;
+        position: relative;
+        border-right: 2px solid transparent;
+      }
+      .nav-item:hover {
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+      }
+      .nav-item.active {
+        background: var(--primary-d);
+        color: var(--primary);
+        border-right-color: var(--primary);
+      }
+      .nav-item .material-symbols-outlined {
+        font-size: 20px;
+      }
+      .nav-item .badge-count {
+        margin-left: auto;
+        background: var(--error);
+        color: #000;
+        font-family: "DM Mono", monospace;
+        font-size: 9px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 100px;
+        min-width: 18px;
+        text-align: center;
+      }
+
+      .sidebar-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 12px 0;
+      }
+
+      .user-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border-radius: var(--radius);
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        margin-bottom: 12px;
+      }
+      .user-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        background: var(--primary-d);
+        border: 1px solid var(--primary-g);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Syne", sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--primary);
+        flex-shrink: 0;
+      }
+      .user-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .user-info strong {
+        display: block;
+        font-size: 13px;
+        color: #fff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .user-info span {
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        color: var(--primary);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .btn-logout {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border-radius: var(--radius);
+        border: none;
+        background: transparent;
+        color: var(--text-f);
+        font-family: "DM Sans", sans-serif;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .btn-logout:hover {
+        background: var(--error-d);
+        color: var(--error);
+      }
+
+      /* ── TOPBAR ── */
+      #topbar {
+        position: sticky;
+        top: 0;
+        left: var(--sidebar-w);
+        margin-left: var(--sidebar-w);
+        height: 64px;
+        z-index: 40;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 32px;
+        background: rgba(10, 13, 18, 0.85);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border);
+      }
+      .topbar-title {
+        font-family: "Syne", sans-serif;
+        font-size: 18px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .topbar-badge {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        background: var(--primary-d);
+        border: 1px solid var(--primary-g);
+        border-radius: 100px;
+        padding: 5px 12px;
+      }
+      .topbar-badge .dot {
+        width: 6px;
+        height: 6px;
+        background: var(--primary);
+        border-radius: 50%;
+        animation: blink 2s ease-in-out infinite;
+      }
+      .topbar-badge span {
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        color: var(--primary);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .topbar-time {
+        font-family: "DM Mono", monospace;
+        font-size: 12px;
+        color: var(--text-f);
+      }
+
+      /* ── MAIN ── */
+      #main {
+        margin-left: var(--sidebar-w);
+        padding: 28px 32px 48px;
+        min-height: 100vh;
+      }
+
+      /* ═══════════════════════════════════════
+       COMPONENTS
+    ═══════════════════════════════════════ */
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+      }
+      .card-header {
+        padding: 20px 24px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .card-header h3 {
+        font-family: "Syne", sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .card-header p {
+        font-size: 12px;
+        color: var(--text-f);
+        margin-top: 2px;
+      }
+      .card-body {
+        padding: 20px 24px 24px;
+      }
+
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .kpi-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px 22px;
+        position: relative;
+        overflow: hidden;
+        transition: border-color 0.2s;
+      }
+      .kpi-card:hover {
+        border-color: var(--primary-g);
+      }
+      .kpi-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 14px;
+      }
+      .kpi-label {
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--text-m);
+      }
+      .kpi-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--surface2);
+      }
+      .kpi-icon .material-symbols-outlined {
+        font-size: 18px;
+      }
+      .kpi-value {
+        font-family: "Syne", sans-serif;
+        font-size: 40px;
+        font-weight: 700;
+        line-height: 1;
+        color: #fff;
+        margin-bottom: 6px;
+      }
+      .kpi-trend {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-family: "DM Mono", monospace;
+        font-size: 11px;
+      }
+      .kpi-trend.up {
+        color: var(--primary);
+      }
+      .kpi-trend.down {
+        color: var(--error);
+      }
+      .kpi-trend .material-symbols-outlined {
+        font-size: 14px;
+      }
+      .kpi-bg-icon {
+        position: absolute;
+        right: -10px;
+        bottom: -10px;
+        opacity: 0.04;
+        font-size: 80px;
+        line-height: 1;
+      }
+
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .grid3 {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 16px;
+      }
+      .col-span2 {
+        grid-column: span 2;
+      }
+      .col-span-full {
+        grid-column: 1/-1;
+      }
+
+      /* TABLE */
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .data-table thead th {
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-f);
+        padding: 0 0 12px;
+        border-bottom: 1px solid var(--border);
+        font-weight: 500;
+        text-align: left;
+      }
+      .data-table tbody tr {
+        border-bottom: 1px solid rgba(31, 45, 61, 0.5);
+        transition: background 0.15s;
+      }
+      .data-table tbody tr:last-child {
+        border-bottom: none;
+      }
+      .data-table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.025);
+      }
+      .data-table tbody td {
+        padding: 11px 0;
+        font-size: 13px;
+        vertical-align: middle;
+      }
+
+      /* BADGE */
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 9px;
+        border-radius: 100px;
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .badge-green {
+        background: rgba(69, 241, 195, 0.12);
+        color: var(--primary);
+        border: 1px solid rgba(69, 241, 195, 0.25);
+      }
+      .badge-orange {
+        background: rgba(255, 206, 166, 0.12);
+        color: var(--warn);
+        border: 1px solid rgba(255, 206, 166, 0.25);
+      }
+      .badge-red {
+        background: rgba(255, 180, 171, 0.12);
+        color: var(--error);
+        border: 1px solid rgba(255, 180, 171, 0.25);
+      }
+      .badge-grey {
+        background: rgba(255, 255, 255, 0.07);
+        color: var(--text-m);
+        border: 1px solid var(--border);
+      }
+
+      /* LOADING SPINNER */
+      .spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--border2);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        display: inline-block;
+        vertical-align: middle;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* FORM */
+      .form-group {
+        margin-bottom: 16px;
+      }
+      .form-label {
+        display: block;
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-m);
+        margin-bottom: 7px;
+      }
+      .form-control {
+        width: 100%;
+        background: var(--surface2);
+        border: 1px solid var(--border2);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+        color: var(--text);
+        font-size: 14px;
+        font-family: "DM Sans", sans-serif;
+        outline: none;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+      }
+      .form-control:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(69, 241, 195, 0.1);
+      }
+      .form-control option {
+        background: var(--surface2);
+      }
+
+      /* BUTTON */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        border-radius: var(--radius);
+        border: none;
+        font-family: "DM Sans", sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: var(--on-primary);
+      }
+      .btn-primary:hover {
+        filter: brightness(1.1);
+      }
+      .btn-danger {
+        background: var(--error-d);
+        color: var(--error);
+        border: 1px solid var(--error);
+      }
+      .btn-danger:hover {
+        background: rgba(255, 180, 171, 0.2);
+      }
+      .btn-ghost {
+        background: var(--surface2);
+        color: var(--text-m);
+        border: 1px solid var(--border);
+      }
+      .btn-ghost:hover {
+        background: var(--surface3);
+        color: var(--text);
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .btn .spinner {
+        width: 14px;
+        height: 14px;
+        border-width: 2px;
+      }
+      .btn .material-symbols-outlined {
+        font-size: 16px;
+      }
+
+      /* ALERT BOX */
+      .alert {
+        padding: 10px 14px;
+        border-radius: var(--radius);
+        font-size: 13px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .alert-success {
+        background: rgba(69, 241, 195, 0.1);
+        border: 1px solid rgba(69, 241, 195, 0.3);
+        color: var(--primary);
+      }
+      .alert-error {
+        background: var(--error-d);
+        border: 1px solid var(--error);
+        color: var(--error);
+      }
+      .alert-warn {
+        background: var(--warn-d);
+        border: 1px solid var(--warn);
+        color: var(--warn);
+      }
+
+      /* TABS */
+      .tabs {
+        display: flex;
+        gap: 4px;
+        background: var(--surface2);
+        padding: 4px;
+        border-radius: var(--radius);
+        margin-bottom: 20px;
+      }
+      .tab {
+        flex: 1;
+        padding: 8px;
+        border: none;
+        background: transparent;
+        color: var(--text-m);
+        font-family: "DM Sans", sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .tab.active {
+        background: var(--surface);
+        color: #fff;
+      }
+
+      /* MODAL */
+      #modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 13, 18, 0.85);
+        backdrop-filter: blur(8px);
+        z-index: 100;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      #modal-overlay.open {
+        display: flex;
+      }
+      #modal-box {
+        background: var(--surface3);
+        border: 1px solid var(--border2);
+        border-radius: var(--radius-lg);
+        max-width: 480px;
+        width: 100%;
+        padding: 28px;
+        animation: slideUp 0.25s ease;
+      }
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      #modal-box h3 {
+        font-family: "Syne", sans-serif;
+        font-size: 18px;
+        font-weight: 700;
+        color: #fff;
+        margin-bottom: 6px;
+      }
+      #modal-box p {
+        color: var(--text-m);
+        font-size: 13px;
+        margin-bottom: 20px;
+      }
+
+      /* TOAST */
+      #toast-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 300;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .toast {
+        padding: 12px 18px;
+        border-radius: var(--radius);
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 260px;
+        animation: toastIn 0.3s ease;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      }
+      @keyframes toastIn {
+        from {
+          opacity: 0;
+          transform: translateX(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+      .toast-success {
+        background: rgba(69, 241, 195, 0.15);
+        border: 1px solid rgba(69, 241, 195, 0.3);
+        color: var(--primary);
+      }
+      .toast-error {
+        background: rgba(255, 180, 171, 0.15);
+        border: 1px solid var(--error);
+        color: var(--error);
+      }
+      .toast .material-symbols-outlined {
+        font-size: 16px;
+      }
+
+      /* INDIVIDUAL VIEW */
+      .profile-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .profile-avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        background: var(--primary-d);
+        border: 2px solid var(--primary-g);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Syne", sans-serif;
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--primary);
+        flex-shrink: 0;
+      }
+
+      /* DEPT CARD */
+      .dept-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+        transition: border-color 0.2s;
+      }
+      .dept-card:hover {
+        border-color: var(--primary-g);
+      }
+      .dept-bar-track {
+        height: 4px;
+        background: var(--surface2);
+        border-radius: 2px;
+        overflow: hidden;
+        margin: 10px 0;
+      }
+      .dept-bar-fill {
+        height: 100%;
+        background: var(--primary);
+        border-radius: 2px;
+        transition: width 1s ease;
+      }
+
+      /* RISK GAUGE */
+      .risk-gauge {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .risk-gauge svg {
+        width: 160px;
+        height: 85px;
+      }
+      .risk-label {
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-f);
+        margin-top: 4px;
+      }
+
+      /* CLUSTER SEGMENTS */
+      .cluster-segment {
+        padding: 14px;
+        background: var(--surface2);
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        margin-bottom: 12px;
+      }
+      .cluster-segment h4 {
+        font-size: 13px;
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 4px;
+      }
+      .cluster-segment p {
+        font-size: 11px;
+        color: var(--text-m);
+        margin-bottom: 10px;
+      }
+      .cluster-bar {
+        height: 3px;
+        background: var(--border);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .cluster-bar div {
+        height: 100%;
+        border-radius: 2px;
+      }
+
+      /* CHART CONTAINER */
+      .chart-wrap {
+        position: relative;
+      }
+
+      /* EMPTY STATE */
+      .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-f);
+      }
+      .empty-state .material-symbols-outlined {
+        font-size: 40px;
+        margin-bottom: 12px;
+        display: block;
+        opacity: 0.4;
+      }
+      .empty-state p {
+        font-size: 14px;
+      }
+
+      /* INTENSITY GRID */
+      .intensity-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 3px;
+      }
+      .i-cell {
+        aspect-ratio: 1;
+        border-radius: 2px;
+        transition: opacity 0.2s;
+        cursor: default;
+      }
+      .i-cell:hover {
+        outline: 1px solid rgba(255, 255, 255, 0.3);
+      }
+
+      /* ADMIN SECTIONS */
+      .admin-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+      .admin-section-header h3 {
+        font-family: "Syne", sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        color: #fff;
+      }
+
+      /* TOGGLE */
+      .toggle-group {
+        display: flex;
+        gap: 8px;
+      }
+      .toggle-btn {
+        padding: 6px 14px;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-m);
+        font-size: 12px;
+        font-family: "DM Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .toggle-btn.active {
+        background: var(--primary-d);
+        color: var(--primary);
+        border-color: var(--primary-g);
+      }
+
+      /* SELECT */
+      select.form-control {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2385948d' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 16px;
+        padding-right: 36px;
+      }
+
+      /* ── TRANSITIONS ── */
+      #view-container {
+        transition: opacity 0.25s ease;
+      }
+      #view-container.fading {
+        opacity: 0;
+      }
+
+      /* ── RESPONSIVE ── */
+      @media (max-width: 900px) {
+        #sidebar {
+          transform: translateX(-100%);
+        }
+        #topbar,
+        #main {
+          margin-left: 0;
+        }
+      }
+      @media (max-width: 600px) {
+        .login-left {
+          display: none;
+        }
+        .kpi-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+        .grid2,
+        .grid3 {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ══════════════════════════════════
+     LOGIN OVERLAY
+══════════════════════════════════ -->
+    <div id="login-overlay">
+      <div class="login-left">
+        <div class="login-branding">
+          <p class="login-brand-eyebrow">
+            Groupe sanitaire territorial · Accès supervisé sécurisé
+          </p>
+          <div class="login-logo-well">
+            <img
+              class="login-brand-logo-img"
+              src="gst_logo_login.png"
+              alt="Logo — Groupe sanitaire territorial TTA"
+            />
+          </div>
+          <div class="login-brand-copy">
+            <h1>GST-TTA <em>Analytics</em></h1>
+            <p>
+              Plateforme de suivi en temps réel pour les stagiaires
+              hospitaliers. Gérez la présence, identifiez les risques et
+              optimisez l'efficacité de vos services.
+            </p>
+          </div>
+          <div class="badge-live">
+            <div class="dot"></div>
+            <span>Live Monitoring</span>
+          </div>
+        </div>
+        <svg
+          class="login-wave"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          <path d="M0 0 C 30 20, 70 80, 100 100 L 100 0 Z" />
+          <path
+            d="M0 0 C 40 40, 60 60, 100 100 L 0 100 Z"
+            fill="#45f1c3"
+            opacity=".15"
+          />
+        </svg>
+      </div>
+      <div class="login-right">
+        <div class="login-form-wrap">
+          <h2>Accès Sécurisé</h2>
+          <p>Entrez vos identifiants pour accéder au tableau de bord.</p>
+
+          <div id="login-error" class="login-error"></div>
+
+          <div class="field">
+            <label>Identifiant</label>
+            <div class="input-wrap">
+              <span class="material-symbols-outlined icon">person</span>
+              <input
+                type="text"
+                id="inp-username"
+                placeholder="admin"
+                autocomplete="username"
+              />
+            </div>
+          </div>
+          <div class="field">
+            <label>Mot de passe</label>
+            <div class="input-wrap">
+              <span class="material-symbols-outlined icon">lock</span>
+              <input
+                type="password"
+                id="inp-password"
+                placeholder="••••••••"
+                autocomplete="current-password"
+              />
+            </div>
+          </div>
+
+          <button class="btn-login" id="btn-login" onclick="doLogin()">
+            <span>Se Connecter</span>
+            <span class="material-symbols-outlined" style="font-size: 18px"
+              >arrow_forward</span
+            >
+          </button>
+
+          <div class="login-footer">
+            <p>© 2026 GST-TTA · DFRI</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════
+     APP
+══════════════════════════════════ -->
+    <div id="app">
+      <!-- SIDEBAR -->
+      <aside id="sidebar">
+        <div class="sidebar-logo">
+          <div class="sidebar-logo-icon">
+            <img
+              src="gst_logo_login.png"
+              alt="Logo — Groupe sanitaire territorial TTA"
+            />
+          </div>
+          <div class="sidebar-logo-text">
+            GST-TTA Analytics <span>Plateforme de gestion des stagiaires</span>
+          </div>
+        </div>
+
+        <div id="user-card" class="user-card">
+          <div class="user-avatar" id="user-avatar">A</div>
+          <div class="user-info">
+            <strong id="user-name">Admin</strong>
+            <span id="user-role">Super Admin</span>
+          </div>
+        </div>
+
+        <div class="sidebar-section-label">Navigation</div>
+        <nav id="nav-links"></nav>
+
+        <div style="margin-top: auto">
+          <div class="sidebar-divider"></div>
+          <button class="btn-logout" onclick="doLogout()">
+            <span class="material-symbols-outlined">logout</span> Déconnexion
+          </button>
+          <div class="sidebar-footer">
+            <p>© 2026 GST-TTA · DFRI</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- TOPBAR -->
+      <header id="topbar">
+        <div class="topbar-title" id="topbar-title">Vue Globale</div>
+        <div class="topbar-right">
+          <div class="topbar-badge">
+            <div class="dot"></div>
+            <span>Live</span>
+          </div>
+          <div class="topbar-time" id="topbar-time"></div>
+        </div>
+      </header>
+
+      <!-- MAIN -->
+      <main id="main">
+        <div id="view-container"></div>
+      </main>
+    </div>
+
+    <!-- MODAL -->
+    <div id="modal-overlay">
+      <div id="modal-box">
+        <h3 id="modal-title"></h3>
+        <p id="modal-desc"></p>
+        <div id="modal-body"></div>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
+          "
+          id="modal-actions"
+        ></div>
+      </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast-container"></div>
+
+    <!-- ══════════════════════════════════
+     SCRIPTS
+══════════════════════════════════ -->
+    <script>
+      // ── CONFIG ────────────────────────────────────────────────────────────────────
+      const API = "http://127.0.0.1:8000";
+
+      // ── STATE ─────────────────────────────────────────────────────────────────────
+      let AUTH = null; // { access_token, role, department_id, username }
+      let CURRENT_VIEW = "global";
+      let DATA = {}; // cached API data
+      let CHARTS = {}; // active Chart.js instances
+      let SELECTED_INTERN = null;
+
+      // ── NAVIGATION ITEMS (filtered by role later) ─────────────────────────────────
+      const NAV_ALL = [
+        { id: "global", label: "Vue Globale", icon: "dashboard" },
+        { id: "individual", label: "Vue Individuelle", icon: "person_search" },
+        {
+          id: "department",
+          label: "Vue Départementale",
+          icon: "corporate_fare",
+          adminOnly: true,
+        },
+        {
+          id: "clusters",
+          label: "Clusters & ML",
+          icon: "hub",
+          adminOnly: true,
+        },
+        {
+          id: "alerts",
+          label: "Journal des Alertes",
+          icon: "notifications_active",
+        },
+        {
+          id: "admin",
+          label: "Administration",
+          icon: "manage_accounts",
+          adminOnly: true,
+        },
+      ];
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // AUTH
+      // ─────────────────────────────────────────────────────────────────────────────
+      async function doLogin() {
+        const username = document.getElementById("inp-username").value.trim();
+        const password = document.getElementById("inp-password").value;
+        const errDiv = document.getElementById("login-error");
+        const btn = document.getElementById("btn-login");
+
+        if (!username || !password) {
+          showLoginError("Veuillez remplir tous les champs.");
+          return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Connexion…';
+        errDiv.classList.remove("visible");
+
+        try {
+          const res = await fetch(`${API}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          });
+          const data = await res.json();
+          if (!res.ok)
+            throw new Error(data.detail || "Identifiants incorrects");
+
+          AUTH = {
+            access_token: data.access_token,
+            role: data.role,
+            department_id: data.department_id,
+            username,
+          };
+          sessionStorage.setItem("chu_auth", JSON.stringify(AUTH));
+
+          document.getElementById("login-overlay").classList.add("hidden");
+          document.getElementById("app").classList.add("visible");
+          initApp();
+        } catch (e) {
+          showLoginError(e.message);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML =
+            '<span>Se Connecter</span><span class="material-symbols-outlined" style="font-size:18px">arrow_forward</span>';
+        }
+      }
+
+      function showLoginError(msg) {
+        const el = document.getElementById("login-error");
+        el.textContent = "⚠ " + msg;
+        el.classList.add("visible");
+      }
+
+      function doLogout() {
+        AUTH = null;
+        DATA = {};
+        sessionStorage.removeItem("chu_auth");
+        document.getElementById("app").classList.remove("visible");
+        document.getElementById("login-overlay").classList.remove("hidden");
+        document.getElementById("inp-password").value = "";
+      }
+
+      function authHeaders() {
+        return {
+          Authorization: `Bearer ${AUTH.access_token}`,
+          "Content-Type": "application/json",
+        };
+      }
+
+      function isSuperAdmin() {
+        return AUTH && AUTH.role === "super_admin";
+      }
+
+      // allow Enter key on login
+      document.addEventListener("keydown", (e) => {
+        if (
+          e.key === "Enter" &&
+          !document.getElementById("login-overlay").classList.contains("hidden")
+        )
+          doLogin();
+      });
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // API HELPERS
+      // ─────────────────────────────────────────────────────────────────────────────
+      async function apiFetch(path, opts = {}) {
+        const res = await fetch(API + path, {
+          headers: authHeaders(),
+          ...opts,
+        });
+        if (res.status === 401) {
+          doLogout();
+          throw new Error("Session expirée");
+        }
+        return res;
+      }
+
+      async function loadData() {
+        try {
+          const [intRes, attRes, dlyRes, dptRes] = await Promise.all([
+            apiFetch("/interns"),
+            apiFetch("/dashboard/history"),
+            apiFetch("/departments"),
+          ]);
+          DATA.interns = await intRes.json();
+          DATA.history = await attRes.json();
+          DATA.departments = await dlyRes.json();
+
+          // If super_admin, also load admins list
+          if (isSuperAdmin()) {
+            const admRes = await apiFetch("/auth/admins");
+            DATA.admins = admRes.ok ? await admRes.json() : [];
+          }
+        } catch (e) {
+          showToast("Erreur chargement données: " + e.message, "error");
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // INIT APP
+      // ─────────────────────────────────────────────────────────────────────────────
+      async function initApp() {
+        // Update user card
+        document.getElementById("user-name").textContent = AUTH.username;
+        document.getElementById("user-avatar").textContent =
+          AUTH.username[0].toUpperCase();
+        document.getElementById("user-role").textContent = isSuperAdmin()
+          ? "Super Admin"
+          : "Superviseur";
+
+        // Build nav
+        buildNav();
+        // Clock
+        updateClock();
+        setInterval(updateClock, 1000);
+        // Load data then render
+        await loadData();
+        switchView("global");
+      }
+
+      function buildNav() {
+        const nav = document.getElementById("nav-links");
+        const items = isSuperAdmin()
+          ? NAV_ALL
+          : NAV_ALL.filter((n) => !n.adminOnly);
+        nav.innerHTML = items
+          .map(
+            (n) => `
+    <button class="nav-item" id="nav-${n.id}" onclick="switchView('${n.id}')">
+      <span class="material-symbols-outlined">${n.icon}</span>${n.label}
+    </button>
+  `,
+          )
+          .join("");
+      }
+
+      function updateNav(active) {
+        document
+          .querySelectorAll(".nav-item")
+          .forEach((el) => el.classList.remove("active"));
+        const el = document.getElementById(`nav-${active}`);
+        if (el) el.classList.add("active");
+      }
+
+      function updateClock() {
+        const now = new Date();
+        document.getElementById("topbar-time").textContent =
+          now.toLocaleDateString("fr-FR", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          }) +
+          " · " +
+          now.toLocaleTimeString("fr-FR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+      }
+
+      function destroyCharts() {
+        Object.values(CHARTS).forEach((c) => c.destroy());
+        CHARTS = {};
+      }
+
+      function switchView(id) {
+        CURRENT_VIEW = id;
+        updateNav(id);
+        const titles = {
+          global: "Vue Globale",
+          individual: "Vue Individuelle",
+          department: "Vue Départementale",
+          clusters: "Clusters & ML",
+          alerts: "Journal des Alertes",
+          admin: "Administration",
+        };
+        document.getElementById("topbar-title").textContent = titles[id] || id;
+
+        const vc = document.getElementById("view-container");
+        vc.classList.add("fading");
+        destroyCharts();
+        setTimeout(() => {
+          switch (id) {
+            case "global":
+              renderGlobal();
+              break;
+            case "individual":
+              renderIndividual();
+              break;
+            case "department":
+              renderDepartment();
+              break;
+            case "clusters":
+              renderClusters();
+              break;
+            case "alerts":
+              renderAlerts();
+              break;
+            case "admin":
+              renderAdmin();
+              break;
+          }
+          vc.classList.remove("fading");
+        }, 220);
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // BADGE HELPERS
+      // ─────────────────────────────────────────────────────────────────────────────
+      function riskBadge(label) {
+        if (!label) return '<span class="badge badge-grey">—</span>';
+        const map = {
+          Faible: "badge-green",
+          Moyen: "badge-orange",
+          Élevé: "badge-red",
+          on_time: "badge-green",
+          late: "badge-orange",
+          missed_checkin: "badge-red",
+          absent: "badge-red",
+          early_checkout: "badge-orange",
+          completed: "badge-green",
+          Présent: "badge-green",
+          Retard: "badge-orange",
+          absent: "badge-red",
+        };
+        const cls = map[label] || "badge-grey";
+        return `<span class="badge ${cls}">${label.replace("_", " ")}</span>`;
+      }
+
+      function statusBadge(status, need_att) {
+        if (need_att)
+          return `<span class="badge badge-red">⚠ ${status || "alerte"}</span>`;
+        return riskBadge(status);
+      }
+
+      function fmtTime(iso) {
+        if (!iso) return "—";
+        try {
+          return new Date(iso).toLocaleTimeString("fr-FR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        } catch {
+          return "—";
+        }
+      }
+
+      function fmtDate(iso) {
+        if (!iso) return "—";
+        try {
+          return new Date(iso).toLocaleDateString("fr-FR", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
+        } catch {
+          return "—";
+        }
+      }
+
+      function initials(first, last) {
+        return ((first || "")[0] || "") + ((last || "")[0] || "");
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // VUE GLOBALE
+      // ─────────────────────────────────────────────────────────────────────────────
+      function renderGlobal() {
+        const interns = DATA.interns || [];
+        const history = DATA.history || [];
+        const depts = DATA.departments || [];
+
+        const today = new Date().toDateString();
+        const todayRec = history.filter(
+          (h) => new Date(h.date).toDateString() === today,
+        );
+        const presentToday = new Set(
+          todayRec.filter((h) => h.arrival_time).map((h) => h.intern_id),
+        ).size;
+        const alertCount = history.filter((h) => h.needs_attention).length;
+
+        // Build scan activity per day (last 30 days)
+        const dayMap = {};
+        history.forEach((h) => {
+          const d = fmtDate(h.date);
+          if (!dayMap[d]) dayMap[d] = { scans: 0, alerts: 0 };
+          dayMap[d].scans++;
+          if (h.needs_attention) dayMap[d].alerts++;
+        });
+        const days = Object.keys(dayMap).slice(-30);
+        const scans = days.map((d) => dayMap[d].scans);
+        const alerts = days.map((d) => dayMap[d].alerts);
+
+        // Risk distribution from history statuses
+        let rFaible = 0,
+          rMoyen = 0,
+          rEleve = 0;
+        const internStatusMap = {};
+        history.forEach((h) => {
+          if (!internStatusMap[h.intern_id]) internStatusMap[h.intern_id] = 0;
+          if (h.needs_attention) internStatusMap[h.intern_id]++;
+        });
+        interns.forEach((i) => {
+          const n = internStatusMap[i.id] || 0;
+          if (n === 0) rFaible++;
+          else if (n <= 3) rMoyen++;
+          else rEleve++;
+        });
+
+        document.getElementById("view-container").innerHTML = `
+    <div class="kpi-grid">
+      ${kpiCard("Total Stagiaires", interns.length, "group", "", "primary")}
+      ${kpiCard("Présents Aujourd'hui", presentToday, "how_to_reg", "", "primary")}
+      ${kpiCard("Services", depts.length, "corporate_fare", "", "primary")}
+      ${kpiCard("Alertes Actives", alertCount, "warning", "", "error")}
+    </div>
+
+    <div class="grid3" style="margin-bottom:16px">
+      <div class="card">
+        <div class="card-header"><div><h3>Activité des Scans (30j)</h3><p>Présences & anomalies quotidiennes</p></div></div>
+        <div class="card-body"><div class="chart-wrap" style="height:280px"><canvas id="ch-global"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div><h3>Répartition Risque</h3></div></div>
+        <div class="card-body"><div class="chart-wrap" style="height:280px;display:flex;align-items:center;justify-content:center"><canvas id="ch-donut"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="card-header" style="padding-bottom:16px">
+          <div><h3>Derniers Scans</h3></div>
+        </div>
+        <div class="card-body" style="padding-top:0;overflow-x:auto">
+          <table class="data-table">
+            <thead><tr>
+              <th>Stagiaire</th><th>Arrivée</th><th>Départ</th><th>Statut</th>
+            </tr></thead>
+            <tbody>
+              ${history
+                .slice(-15)
+                .reverse()
+                .map((h) => {
+                  const intern = interns.find((i) => i.id === h.intern_id);
+                  const name = intern
+                    ? `${intern.first_name} ${intern.last_name}`
+                    : h.intern_id.substring(0, 8) + "…";
+                  return `<tr>
+                  <td><div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:28px;height:28px;border-radius:8px;background:var(--primary-d);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--primary)">${name[0]}</div>
+                    <span style="font-weight:600;font-size:13px">${name}</span>
+                  </div></td>
+                  <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td>
+                  <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td>
+                  <td>${statusBadge(h.status, h.needs_attention)}</td>
+                </tr>`;
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header" style="padding-bottom:16px"><div><h3>Intensité Hebdomadaire</h3><p>Densité des scans par heure/jour</p></div></div>
+        <div class="card-body" style="padding-top:0">
+          <div class="intensity-grid">
+            ${Array.from({ length: 84 })
+              .map(() => {
+                const v = Math.random();
+                const opacity =
+                  v > 0.8 ? "1" : v > 0.5 ? ".6" : v > 0.2 ? ".25" : ".08";
+                return `<div class="i-cell" style="background:rgba(69,241,195,${opacity})"></div>`;
+              })
+              .join("")}
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:10px">
+            ${["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-f);text-transform:uppercase">${d}</span>`).join("")}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+        nextTick(() => {
+          CHARTS["global"] = new Chart(document.getElementById("ch-global"), {
+            type: "line",
+            data: {
+              labels: days,
+              datasets: [
+                {
+                  label: "Scans",
+                  data: scans,
+                  borderColor: "#45f1c3",
+                  backgroundColor: "rgba(69,241,195,.08)",
+                  fill: true,
+                  tension: 0.4,
+                  pointRadius: 2,
+                },
+                {
+                  label: "Alertes",
+                  data: alerts,
+                  borderColor: "#ffb4ab",
+                  backgroundColor: "rgba(255,180,171,.08)",
+                  fill: true,
+                  tension: 0.4,
+                  pointRadius: 2,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  labels: {
+                    color: "#bacac2",
+                    boxWidth: 10,
+                    font: { size: 11 },
+                  },
+                },
+              },
+              scales: {
+                y: {
+                  grid: { color: "#1a2130" },
+                  ticks: { color: "#85948d", font: { size: 10 } },
+                },
+                x: {
+                  grid: { display: false },
+                  ticks: {
+                    color: "#85948d",
+                    font: { size: 10 },
+                    maxTicksLimit: 8,
+                  },
+                },
+              },
+            },
+          });
+
+          CHARTS["donut"] = new Chart(document.getElementById("ch-donut"), {
+            type: "doughnut",
+            data: {
+              labels: ["Faible", "Moyen", "Élevé"],
+              datasets: [
+                {
+                  data: [rFaible, rMoyen, rEleve],
+                  backgroundColor: ["#45f1c3", "#ffcea6", "#ffb4ab"],
+                  borderWidth: 0,
+                  hoverOffset: 8,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: "78%",
+              plugins: {
+                legend: {
+                  position: "bottom",
+                  labels: {
+                    color: "#dce4df",
+                    usePointStyle: true,
+                    font: { size: 11 },
+                  },
+                },
+              },
+            },
+          });
+        });
+      }
+
+      function kpiCard(label, value, icon, trend, color) {
+        const iconColor =
+          color === "error"
+            ? "color:var(--error)"
+            : color === "warn"
+              ? "color:var(--warn)"
+              : "color:var(--primary)";
+        return `<div class="kpi-card">
+    <div class="kpi-top">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-icon"><span class="material-symbols-outlined" style="${iconColor}">${icon}</span></div>
+    </div>
+    <div class="kpi-value">${value}</div>
+    <div class="kpi-bg-icon"><span class="material-symbols-outlined">${icon}</span></div>
+  </div>`;
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // VUE INDIVIDUELLE
+      // ─────────────────────────────────────────────────────────────────────────────
+      function renderIndividual() {
+        const interns = DATA.interns || [];
+        const history = DATA.history || [];
+        if (!SELECTED_INTERN && interns.length) SELECTED_INTERN = interns[0].id;
+
+        const intern =
+          interns.find((i) => i.id === SELECTED_INTERN) || interns[0];
+        if (!intern) {
+          document.getElementById("view-container").innerHTML =
+            '<div class="empty-state"><span class="material-symbols-outlined">person_off</span><p>Aucun stagiaire trouvé.</p></div>';
+          return;
+        }
+
+        const internHistory = history
+          .filter((h) => h.intern_id === intern.id)
+          .sort((a, b) => new Date(b.date) - new Date(a.date));
+        const presentDays = internHistory.filter(
+          (h) => h.status !== "absent",
+        ).length;
+        const totalDays = internHistory.length;
+        const rate = totalDays
+          ? Math.round((presentDays / totalDays) * 100)
+          : 0;
+        const avgDur = internHistory.length
+          ? (
+              internHistory.reduce((s, h) => s + (h.work_duration || 0), 0) /
+              internHistory.length
+            ).toFixed(1)
+          : 0;
+        const risk = 100 - rate;
+        const riskColor =
+          risk < 30 ? "#45f1c3" : risk < 60 ? "#ffcea6" : "#ffb4ab";
+        const dept = (DATA.departments || []).find(
+          (d) => d.id === intern.department_id,
+        );
+        const deptName = dept ? dept.name : "—";
+
+        // chart data: last 14 days durations
+        const chartDays = internHistory.slice(0, 14).reverse();
+        const chartDates = chartDays.map((h) => fmtDate(h.date));
+        const chartDurs = chartDays.map((h) => h.work_duration || 0);
+
+        document.getElementById("view-container").innerHTML = `
+    <div class="grid3" style="align-items:start">
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <div class="card card-body">
+          <label class="form-label" style="margin-bottom:8px">Sélectionner un stagiaire</label>
+          <select class="form-control" onchange="SELECTED_INTERN=this.value;switchView('individual')">
+            ${interns.map((i) => `<option value="${i.id}" ${i.id === intern.id ? "selected" : ""}>${i.first_name} ${i.last_name}</option>`).join("")}
+          </select>
+          <div style="text-align:center;margin-top:20px">
+            <div class="profile-avatar" style="width:64px;height:64px;border-radius:16px;font-size:22px;margin:0 auto 12px">${initials(intern.first_name, intern.last_name)}</div>
+            <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:#fff">${intern.first_name} ${intern.last_name}</div>
+            <div style="color:var(--text-f);font-size:12px;margin:4px 0 10px">${deptName}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;padding-top:16px;border-top:1px solid var(--border)">
+            <div style="text-align:center;background:var(--surface2);border-radius:var(--radius);padding:12px">
+              <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--primary)">${rate}%</div>
+              <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f)">Présence</div>
+            </div>
+            <div style="text-align:center;background:var(--surface2);border-radius:var(--radius);padding:12px">
+              <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:#fff">${avgDur}h</div>
+              <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f)">Moy/jour</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-body">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-m);margin-bottom:12px">Indice de Risque</div>
+          <div class="risk-gauge">
+            <svg viewBox="0 0 160 85">
+              <path d="M 20 80 A 60 60 0 0 1 140 80" fill="none" stroke="#1a2130" stroke-width="10" stroke-linecap="round"/>
+              <path d="M 20 80 A 60 60 0 0 1 140 80" fill="none" stroke="${riskColor}" stroke-width="10" stroke-linecap="round"
+                    stroke-dasharray="${risk * 1.88} 188" />
+              <text x="80" y="78" text-anchor="middle" font-family="Syne" font-size="24" font-weight="700" fill="${riskColor}">${risk}</text>
+              <text x="80" y="90" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#85948d">/ 100</text>
+            </svg>
+            <div class="risk-label">${risk < 30 ? "Risque Faible ✓" : risk < 60 ? "Risque Modéré" : "Risque Élevé !"}</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <div class="card-header"><h3>Activité — 14 derniers jours</h3></div>
+          <div class="card-body"><div class="chart-wrap" style="height:240px"><canvas id="ch-ind"></canvas></div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" style="margin-bottom:0"><h3>Historique des pointages</h3></div>
+          <div class="card-body" style="overflow-x:auto">
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Statut</th></tr></thead>
+              <tbody>
+                ${internHistory
+                  .slice(0, 20)
+                  .map(
+                    (h) => `<tr>
+                  <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtDate(h.date)}</td>
+                  <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td>
+                  <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td>
+                  <td style="font-weight:600;color:var(--primary)">${(h.work_duration || 0).toFixed(1)}h</td>
+                  <td>${statusBadge(h.status, h.needs_attention)}</td>
+                </tr>`,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+            ${!internHistory.length ? '<div class="empty-state"><p>Aucun enregistrement pour ce stagiaire.</p></div>' : ""}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+        nextTick(() => {
+          CHARTS["ind"] = new Chart(document.getElementById("ch-ind"), {
+            type: "bar",
+            data: {
+              labels: chartDates,
+              datasets: [
+                {
+                  label: "Heures travaillées",
+                  data: chartDurs,
+                  backgroundColor: "rgba(69,241,195,.6)",
+                  borderColor: "#45f1c3",
+                  borderWidth: 1,
+                  borderRadius: 4,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                y: {
+                  grid: { color: "#1a2130" },
+                  ticks: { color: "#85948d", font: { size: 10 } },
+                  min: 0,
+                },
+                x: {
+                  grid: { display: false },
+                  ticks: {
+                    color: "#85948d",
+                    font: { size: 10 },
+                    maxTicksLimit: 7,
+                  },
+                },
+              },
+            },
+          });
+        });
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // VUE DÉPARTEMENTALE
+      // ─────────────────────────────────────────────────────────────────────────────
+      function renderDepartment() {
+        const depts = DATA.departments || [];
+        const interns = DATA.interns || [];
+        const history = DATA.history || [];
+
+        // Stats per dept
+        const deptStats = depts.map((d) => {
+          const dInterns = interns.filter((i) => i.department_id === d.id);
+          const ids = dInterns.map((i) => i.id);
+          const dHistory = history.filter((h) => ids.includes(h.intern_id));
+          const present = dHistory.filter((h) => h.status !== "absent").length;
+          const total = dHistory.length;
+          const rate = total ? Math.round((present / total) * 100) : 0;
+          const totalH = dHistory
+            .reduce((s, h) => s + (h.work_duration || 0), 0)
+            .toFixed(1);
+          const alerts = dHistory.filter((h) => h.needs_attention).length;
+          return {
+            ...d,
+            nb: dInterns.length,
+            rate,
+            totalH,
+            alerts,
+            present,
+            total,
+          };
+        });
+
+        document.getElementById("view-container").innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:20px">
+      ${deptStats
+        .map(
+          (d) => `
+        <div class="dept-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#fff">${d.name}</div>
+            <span class="material-symbols-outlined" style="color:var(--primary);font-size:20px">local_hospital</span>
+          </div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}">${d.rate}%</div>
+          <div style="font-size:11px;color:var(--text-f);margin-bottom:6px">taux de présence</div>
+          <div class="dept-bar-track"><div class="dept-bar-fill" style="width:${d.rate}%;background:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+            <span style="color:var(--text-m)">${d.nb} stagiaires</span>
+            <span style="color:${d.alerts > 0 ? "var(--error)" : "var(--primary)"};">${d.alerts} alertes</span>
+          </div>
+        </div>
+      `,
+        )
+        .join("")}
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><h3>Comparatif des Services</h3></div>
+      <div class="card-body"><div class="chart-wrap" style="height:300px"><canvas id="ch-dept"></canvas></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" style="margin-bottom:0"><h3>Taux de présence moyen par département</h3></div>
+      <div class="card-body"><div class="chart-wrap" style="height:220px"><canvas id="ch-dept2"></canvas></div></div>
+    </div>
+  `;
+
+        nextTick(() => {
+          CHARTS["dept"] = new Chart(document.getElementById("ch-dept"), {
+            type: "bar",
+            data: {
+              labels: deptStats.map((d) => d.name),
+              datasets: [
+                {
+                  label: "Taux présence (%)",
+                  data: deptStats.map((d) => d.rate),
+                  backgroundColor: "rgba(69,241,195,.6)",
+                  borderColor: "#45f1c3",
+                  borderWidth: 1,
+                  borderRadius: 4,
+                },
+                {
+                  label: "Alertes",
+                  data: deptStats.map((d) => d.alerts),
+                  backgroundColor: "rgba(255,180,171,.6)",
+                  borderColor: "#ffb4ab",
+                  borderWidth: 1,
+                  borderRadius: 4,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { labels: { color: "#dce4df", font: { size: 11 } } },
+              },
+              scales: {
+                y: { grid: { color: "#1a2130" }, ticks: { color: "#85948d" } },
+                x: { grid: { display: false }, ticks: { color: "#85948d" } },
+              },
+            },
+          });
+
+          CHARTS["dept2"] = new Chart(document.getElementById("ch-dept2"), {
+            type: "bar",
+            data: {
+              labels: deptStats.map((d) => d.name),
+              datasets: [
+                {
+                  label: "Taux (%)",
+                  data: deptStats.map((d) => d.rate),
+                  backgroundColor: deptStats.map((d) =>
+                    d.rate >= 80
+                      ? "rgba(69,241,195,.7)"
+                      : d.rate >= 60
+                        ? "rgba(255,206,166,.7)"
+                        : "rgba(255,180,171,.7)",
+                  ),
+                  borderRadius: 4,
+                },
+              ],
+            },
+            options: {
+              indexAxis: "y",
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: {
+                  grid: { color: "#1a2130" },
+                  ticks: { color: "#85948d" },
+                  max: 100,
+                },
+                y: { grid: { display: false }, ticks: { color: "#85948d" } },
+              },
+            },
+          });
+        });
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // CLUSTERS & ML
+      // ─────────────────────────────────────────────────────────────────────────────
+      function renderClusters() {
+        // PCA scatter is still illustrative (no real ML endpoint to call)
+        document.getElementById("view-container").innerHTML = `
+    <div class="grid3">
+      <div class="card">
+        <div class="card-header">
+          <div><h3>Analyse Comportementale ML</h3><p>Visualisation PCA — données de présence</p></div>
+          <div style="display:flex;gap:8px">
+            <button class="toggle-btn active" id="kmeans-btn" onclick="setAlgoActive('kmeans')">K-MEANS</button>
+            <button class="toggle-btn" id="dbscan-btn" onclick="setAlgoActive('dbscan')">DBSCAN</button>
+          </div>
+        </div>
+        <div class="card-body"><div class="chart-wrap" style="height:420px"><canvas id="ch-pca"></canvas></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div class="card">
+          <div class="card-header"><h3>Segments Détectés</h3></div>
+          <div class="card-body">
+            ${[
+              {
+                label: "Cluster Alpha — Profils Fiables",
+                color: "#45f1c3",
+                pct: 65,
+                desc: "Régularité exemplaire, scans stables. Faible variabilité horaire.",
+              },
+              {
+                label: "Cluster Beta — Instabilité Modérée",
+                color: "#ffcea6",
+                pct: 25,
+                desc: "Horaires variables, anomalies mineures fréquentes.",
+              },
+              {
+                label: "Cluster Gamma — Profils à Risque",
+                color: "#ffb4ab",
+                pct: 10,
+                desc: "Retards fréquents, absences prolongées.",
+              },
+            ]
+              .map(
+                (c) => `
+              <div class="cluster-segment">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <h4>${c.label}</h4>
+                  <span style="font-family:'DM Mono',monospace;font-size:11px;color:${c.color}">${c.pct}%</span>
+                </div>
+                <p>${c.desc}</p>
+                <div class="cluster-bar"><div style="width:${c.pct}%;background:${c.color}"></div></div>
+              </div>
+            `,
+              )
+              .join("")}
+
+            <div style="background:var(--primary-d);border:1px solid var(--primary-g);border-radius:var(--radius);padding:12px;margin-top:4px">
+              <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--primary);letter-spacing:.1em;margin-bottom:4px">Shadow Mode Actif</div>
+              <p style="font-size:12px;color:var(--text-m)">Modèle entraîné sur données synthétiques. Résultats indicatifs seulement.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+        nextTick(() => {
+          function genCluster(cx, cy, n, spread = 1.5) {
+            return Array.from({ length: n }, () => ({
+              x: cx + (Math.random() - 0.5) * spread,
+              y: cy + (Math.random() - 0.5) * spread,
+            }));
+          }
+          CHARTS["pca"] = new Chart(document.getElementById("ch-pca"), {
+            type: "scatter",
+            data: {
+              datasets: [
+                {
+                  label: "Alpha (Fiables)",
+                  data: genCluster(
+                    -2,
+                    -1.5,
+                    Math.round((DATA.interns || []).length * 0.65 || 10),
+                  ),
+                  backgroundColor: "rgba(69,241,195,.7)",
+                  pointRadius: 6,
+                },
+                {
+                  label: "Beta (Modéré)",
+                  data: genCluster(
+                    2,
+                    2,
+                    Math.round((DATA.interns || []).length * 0.25 || 4),
+                  ),
+                  backgroundColor: "rgba(255,206,166,.7)",
+                  pointRadius: 6,
+                },
+                {
+                  label: "Gamma (Risque)",
+                  data: genCluster(
+                    3,
+                    -3,
+                    Math.round((DATA.interns || []).length * 0.1 || 2),
+                  ),
+                  backgroundColor: "rgba(255,180,171,.7)",
+                  pointRadius: 6,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  labels: {
+                    color: "#dce4df",
+                    usePointStyle: true,
+                    font: { size: 11 },
+                  },
+                },
+              },
+              scales: {
+                x: {
+                  grid: { color: "#1a2130" },
+                  ticks: { color: "#85948d", font: { size: 10 } },
+                },
+                y: {
+                  grid: { color: "#1a2130" },
+                  ticks: { color: "#85948d", font: { size: 10 } },
+                },
+              },
+            },
+          });
+        });
+      }
+
+      function setAlgoActive(algo) {
+        document
+          .getElementById("kmeans-btn")
+          .classList.toggle("active", algo === "kmeans");
+        document
+          .getElementById("dbscan-btn")
+          .classList.toggle("active", algo === "dbscan");
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // JOURNAL DES ALERTES
+      // ─────────────────────────────────────────────────────────────────────────────
+      function renderAlerts() {
+        const history = DATA.history || [];
+        const interns = DATA.interns || [];
+        const alerts = history
+          .filter((h) => h.needs_attention)
+          .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        document.getElementById("view-container").innerHTML = `
+    <div class="card">
+      <div class="card-header" style="padding-bottom:16px">
+        <div>
+          <h3>Journal des Anomalies</h3>
+          <p>${alerts.length} événement(s) nécessitant attention</p>
+        </div>
+        ${
+          isSuperAdmin()
+            ? `
+        <button class="btn btn-danger" onclick="markAbsences()">
+          <span class="material-symbols-outlined">event_busy</span> Marquer absences du jour
+        </button>`
+            : ""
+        }
+      </div>
+      <div class="card-body" style="padding-top:0">
+        ${
+          alerts.length === 0
+            ? '<div class="empty-state"><span class="material-symbols-outlined">check_circle</span><p>Aucune anomalie détectée — tout est nominal.</p></div>'
+            : `
+        <div id="alerts-msg"></div>
+        <table class="data-table">
+          <thead><tr><th>Date</th><th>Stagiaire</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Statut</th></tr></thead>
+          <tbody>
+            ${alerts
+              .map((h) => {
+                const intern = interns.find((i) => i.id === h.intern_id);
+                const name = intern
+                  ? `${intern.first_name} ${intern.last_name}`
+                  : h.intern_id.substring(0, 8) + "…";
+                return `<tr>
+                <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtDate(h.date)}</td>
+                <td style="font-weight:600">${name}</td>
+                <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td>
+                <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td>
+                <td style="color:var(--text-m);font-size:12px">${(h.work_duration || 0).toFixed(1)}h</td>
+                <td>${statusBadge(h.status, h.needs_attention)}</td>
+              </tr>`;
+              })
+              .join("")}
+          </tbody>
+        </table>`
+        }
+      </div>
+    </div>
+  `;
+      }
+
+      async function markAbsences() {
+        try {
+          const res = await apiFetch("/admin/mark-absences", {
+            method: "POST",
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur serveur");
+          showToast(data.message || "Absences marquées", "success");
+          await loadData();
+          renderAlerts();
+        } catch (e) {
+          showToast(e.message, "error");
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // ADMINISTRATION
+      // ─────────────────────────────────────────────────────────────────────────────
+      function renderAdmin() {
+        document.getElementById("view-container").innerHTML = `
+    <div class="tabs">
+      <button class="tab active" id="tab-interns"  onclick="showAdminTab('interns')">👥 Stagiaires</button>
+      <button class="tab"        id="tab-accounts" onclick="showAdminTab('accounts')">🔑 Comptes Admin</button>
+      <button class="tab"        id="tab-pwd"      onclick="showAdminTab('pwd')">🔒 Mot de passe</button>
+    </div>
+    <div id="admin-content"></div>
+  `;
+        showAdminTab("interns");
+      }
+
+      function showAdminTab(tab) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((t) => t.classList.remove("active"));
+        document.getElementById(`tab-${tab}`).classList.add("active");
+        switch (tab) {
+          case "interns":
+            renderAdminInterns();
+            break;
+          case "accounts":
+            renderAdminAccounts();
+            break;
+          case "pwd":
+            renderAdminPwd();
+            break;
+        }
+      }
+
+      function renderAdminInterns() {
+        const interns = DATA.interns || [];
+        const depts = DATA.departments || [];
+
+        document.getElementById("admin-content").innerHTML = `
+    <div class="grid2" style="align-items:start">
+      <div class="card">
+        <div class="admin-section-header card-header"><h3>Liste des Stagiaires</h3>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-f)">${interns.length} enregistrés</span>
+        </div>
+        <div class="card-body" style="padding-top:0;overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>Nom</th><th>Service</th><th>UUID</th><th></th></tr></thead>
+            <tbody>
+              ${interns
+                .map((i) => {
+                  const dept = depts.find((d) => d.id === i.department_id);
+                  return `<tr>
+                  <td style="font-weight:600">${i.first_name} ${i.last_name}</td>
+                  <td>${dept ? dept.name : "—"}</td>
+                  <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-f)">${i.id.substring(0, 12)}…</td>
+                  <td><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDeleteIntern('${i.id}','${i.first_name} ${i.last_name}')">
+                    <span class="material-symbols-outlined" style="font-size:13px">delete</span>
+                  </button></td>
+                </tr>`;
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Ajouter un Stagiaire</h3></div>
+        <div class="card-body">
+          <div id="add-intern-msg"></div>
+          <div class="form-group">
+            <label class="form-label">Prénom</label>
+            <input class="form-control" id="inp-fn" placeholder="Prénom"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nom</label>
+            <input class="form-control" id="inp-ln" placeholder="Nom de famille"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Service</label>
+            <select class="form-control" id="inp-dept">
+              ${depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}
+            </select>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="addIntern()">
+            <span class="material-symbols-outlined">person_add</span> Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+      }
+
+      async function addIntern() {
+        const first_name = document.getElementById("inp-fn").value.trim();
+        const last_name = document.getElementById("inp-ln").value.trim();
+        const department_id = document.getElementById("inp-dept").value;
+        const msgEl = document.getElementById("add-intern-msg");
+
+        if (!first_name || !last_name) {
+          msgEl.innerHTML =
+            '<div class="alert alert-error">Veuillez remplir tous les champs.</div>';
+          return;
+        }
+
+        try {
+          const res = await apiFetch("/interns/add", {
+            method: "POST",
+            body: JSON.stringify({ first_name, last_name, department_id }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur serveur");
+          showToast(`✅ ${first_name} ${last_name} ajouté(e)`, "success");
+          document.getElementById("inp-fn").value = "";
+          document.getElementById("inp-ln").value = "";
+          await loadData();
+          renderAdminInterns();
+        } catch (e) {
+          msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+        }
+      }
+
+      function confirmDeleteIntern(id, name) {
+        openModal(
+          "Supprimer ce stagiaire ?",
+          `Êtes-vous sûr de vouloir supprimer <strong style="color:#fff">${name}</strong> ? Cette action est irréversible.`,
+          `<button class="btn btn-danger" onclick="deleteIntern('${id}')"><span class="material-symbols-outlined">delete_forever</span> Supprimer</button>
+     <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>`,
+        );
+      }
+
+      async function deleteIntern(id) {
+        try {
+          const res = await apiFetch(`/interns/${id}`, { method: "DELETE" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur");
+          showToast(data.message || "Supprimé", "success");
+          closeModal();
+          await loadData();
+          renderAdminInterns();
+        } catch (e) {
+          showToast(e.message, "error");
+          closeModal();
+        }
+      }
+
+      function renderAdminAccounts() {
+        const admins = DATA.admins || [];
+        const depts = DATA.departments || [];
+
+        document.getElementById("admin-content").innerHTML = `
+    <div class="grid2" style="align-items:start">
+      <div class="card">
+        <div class="card-header"><h3>Comptes Administrateurs</h3></div>
+        <div class="card-body" style="padding-top:0">
+          <table class="data-table">
+            <thead><tr><th>Identifiant</th><th>Rôle</th><th>Département</th><th></th></tr></thead>
+            <tbody>
+              ${admins
+                .map((a) => {
+                  const dept = depts.find((d) => d.id === a.department_id);
+                  const isMe = a.username === AUTH.username;
+                  return `<tr>
+                  <td style="font-weight:600">${a.username}${isMe ? ' <span style="font-size:10px;color:var(--primary)">(moi)</span>' : ""}</td>
+                  <td>${a.role === "super_admin" ? '<span class="badge badge-green">Super Admin</span>' : '<span class="badge badge-grey">Superviseur</span>'}</td>
+                  <td style="font-size:12px;color:var(--text-m)">${dept ? dept.name : a.role === "super_admin" ? "Tous" : "—"}</td>
+                  <td>${
+                    !isMe
+                      ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDeleteAdmin('${a.id}','${a.username}')">
+                    <span class="material-symbols-outlined" style="font-size:13px">delete</span>
+                  </button>`
+                      : ""
+                  }</td>
+                </tr>`;
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>Créer un Compte</h3></div>
+        <div class="card-body">
+          <div id="create-admin-msg"></div>
+          <div class="form-group">
+            <label class="form-label">Identifiant</label>
+            <input class="form-control" id="ca-user" placeholder="nom_utilisateur"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mot de passe (min. 8 car.)</label>
+            <input class="form-control" id="ca-pwd" type="password" placeholder="••••••••"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rôle</label>
+            <select class="form-control" id="ca-role" onchange="toggleDeptField()">
+              <option value="supervisor">Superviseur</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
+          <div class="form-group" id="ca-dept-group">
+            <label class="form-label">Département (obligatoire pour superviseur)</label>
+            <select class="form-control" id="ca-dept">
+              ${depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}
+            </select>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="createAdmin()">
+            <span class="material-symbols-outlined">person_add</span> Créer le compte
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+      }
+
+      function toggleDeptField() {
+        const role = document.getElementById("ca-role").value;
+        document.getElementById("ca-dept-group").style.display =
+          role === "supervisor" ? "block" : "none";
+      }
+
+      async function createAdmin() {
+        const username = document.getElementById("ca-user").value.trim();
+        const password = document.getElementById("ca-pwd").value;
+        const role = document.getElementById("ca-role").value;
+        const department_id =
+          role === "supervisor"
+            ? document.getElementById("ca-dept").value
+            : null;
+        const msgEl = document.getElementById("create-admin-msg");
+
+        if (!username || !password) {
+          msgEl.innerHTML =
+            '<div class="alert alert-error">Identifiant et mot de passe requis.</div>';
+          return;
+        }
+        if (password.length < 8) {
+          msgEl.innerHTML =
+            '<div class="alert alert-error">Mot de passe trop court (min. 8 car.).</div>';
+          return;
+        }
+
+        try {
+          const res = await apiFetch("/auth/create-admin", {
+            method: "POST",
+            body: JSON.stringify({ username, password, role, department_id }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur");
+          showToast(`Compte '${username}' créé`, "success");
+          document.getElementById("ca-user").value = "";
+          document.getElementById("ca-pwd").value = "";
+          const admRes = await apiFetch("/auth/admins");
+          DATA.admins = admRes.ok ? await admRes.json() : DATA.admins;
+          renderAdminAccounts();
+        } catch (e) {
+          msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+        }
+      }
+
+      function confirmDeleteAdmin(id, username) {
+        openModal(
+          "Supprimer ce compte ?",
+          `Êtes-vous sûr de vouloir supprimer le compte <strong style="color:#fff">${username}</strong> ?`,
+          `<button class="btn btn-danger" onclick="deleteAdmin('${id}')"><span class="material-symbols-outlined">delete_forever</span> Supprimer</button>
+     <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>`,
+        );
+      }
+
+      async function deleteAdmin(id) {
+        try {
+          const res = await apiFetch(`/auth/admins/${id}`, {
+            method: "DELETE",
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur");
+          showToast(data.message || "Compte supprimé", "success");
+          closeModal();
+          const admRes = await apiFetch("/auth/admins");
+          DATA.admins = admRes.ok ? await admRes.json() : DATA.admins;
+          renderAdminAccounts();
+        } catch (e) {
+          showToast(e.message, "error");
+          closeModal();
+        }
+      }
+
+      function renderAdminPwd() {
+        document.getElementById("admin-content").innerHTML = `
+    <div style="max-width:440px">
+      <div class="card">
+        <div class="card-header"><h3>Changer mon mot de passe</h3></div>
+        <div class="card-body">
+          <div id="pwd-msg"></div>
+          <div class="form-group">
+            <label class="form-label">Mot de passe actuel</label>
+            <input class="form-control" id="pwd-cur" type="password" placeholder="••••••••"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nouveau mot de passe</label>
+            <input class="form-control" id="pwd-new" type="password" placeholder="••••••••"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Confirmer le nouveau mot de passe</label>
+            <input class="form-control" id="pwd-new2" type="password" placeholder="••••••••"/>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="changePwd()">
+            <span class="material-symbols-outlined">lock_reset</span> Mettre à jour
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+      }
+
+      async function changePwd() {
+        const current_password = document.getElementById("pwd-cur").value;
+        const new_password = document.getElementById("pwd-new").value;
+        const confirm = document.getElementById("pwd-new2").value;
+        const msgEl = document.getElementById("pwd-msg");
+
+        if (new_password !== confirm) {
+          msgEl.innerHTML =
+            '<div class="alert alert-error">Les mots de passe ne correspondent pas.</div>';
+          return;
+        }
+        if (new_password.length < 8) {
+          msgEl.innerHTML =
+            '<div class="alert alert-error">Mot de passe trop court (min. 8 car.).</div>';
+          return;
+        }
+
+        try {
+          const res = await apiFetch("/auth/change-password", {
+            method: "POST",
+            body: JSON.stringify({ current_password, new_password }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur");
+          showToast("Mot de passe mis à jour", "success");
+          msgEl.innerHTML =
+            '<div class="alert alert-success"><span class="material-symbols-outlined">check_circle</span> Mot de passe mis à jour avec succès.</div>';
+          document.getElementById("pwd-cur").value = "";
+          document.getElementById("pwd-new").value = "";
+          document.getElementById("pwd-new2").value = "";
+        } catch (e) {
+          msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // MODAL
+      // ─────────────────────────────────────────────────────────────────────────────
+      function openModal(title, desc, actionsHTML) {
+        document.getElementById("modal-title").textContent = title;
+        document.getElementById("modal-desc").innerHTML = desc;
+        document.getElementById("modal-actions").innerHTML = actionsHTML;
+        document.getElementById("modal-body").innerHTML = "";
+        document.getElementById("modal-overlay").classList.add("open");
+      }
+
+      function closeModal() {
+        document.getElementById("modal-overlay").classList.remove("open");
+      }
+      document
+        .getElementById("modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target === document.getElementById("modal-overlay"))
+            closeModal();
+        });
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // TOAST
+      // ─────────────────────────────────────────────────────────────────────────────
+      function showToast(msg, type = "success") {
+        const t = document.createElement("div");
+        t.className = `toast toast-${type}`;
+        const icon = type === "success" ? "check_circle" : "error";
+        t.innerHTML = `<span class="material-symbols-outlined">${icon}</span>${msg}`;
+        document.getElementById("toast-container").appendChild(t);
+        setTimeout(() => {
+          t.style.opacity = "0";
+          t.style.transform = "translateX(20px)";
+          t.style.transition = "all .3s";
+          setTimeout(() => t.remove(), 300);
+        }, 3500);
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // UTIL
+      // ─────────────────────────────────────────────────────────────────────────────
+      function nextTick(fn) {
+        requestAnimationFrame(() => requestAnimationFrame(fn));
+      }
+
+      // ─────────────────────────────────────────────────────────────────────────────
+      // BOOT — restore session if available
+      // ─────────────────────────────────────────────────────────────────────────────
+      (function boot() {
+        const saved = sessionStorage.getItem("chu_auth");
+        if (saved) {
+          try {
+            AUTH = JSON.parse(saved);
+            document.getElementById("login-overlay").classList.add("hidden");
+            document.getElementById("app").classList.add("visible");
+            initApp();
+          } catch {
+            sessionStorage.removeItem("chu_auth");
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>

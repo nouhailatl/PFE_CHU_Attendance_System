@@ -28,6 +28,8 @@ python-dotenv
 # Dashboard
 streamlit
 plotly
+streamlit-option-menu
+streamlit-aggrid
 
 # JWT
 python-jose[cryptography]    # JWT creation & verification
