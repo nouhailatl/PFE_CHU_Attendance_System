@@ -17,6 +17,9 @@ OTHER RULES:
   - Any two scans within 5 minutes         → ❌ rejected (double-scan guard)
   - No scan at all by end of day           → auto-marked "absent"
     via POST /admin/mark-absences (run once at ~18:00 via cron or manually)
+  - Checked in but no checkout by night    → auto-closed as "missed_checkout"
+    via POST /admin/auto-close-checkouts   (run once at ~23:00 via cron)
+    work_duration = min(CHECKOUT_CLOSE - arrival_time, STANDARD_WORK_HOURS)
 
 STATUS FIELDS on DailyStatus:
   status          → daily admin verdict (one word, shown on dashboard):
@@ -27,6 +30,12 @@ STATUS FIELDS on DailyStatus:
   needs_attention → Boolean flag the dashboard reads to show an alarm icon.
                     True whenever: missed_checkin, early_checkout,
                     missed_checkout, or absent.
+
+NIGHTLY PIPELINE — POST /admin/run-nightly-pipeline:
+  Step 1 → auto-close forgotten checkouts
+  Step 2 → mark absent interns
+  Step 3 → run ETL + feature engineering
+  Step 4 → retrain ML models (if enough data exists, else keep rule-based labels)
 
 Times stored as UTC-naive in SQLite (backward-compatible with existing data).
 All comparisons use Morocco local time (UTC+1, fixed offset).
@@ -49,8 +58,10 @@ from auth import (
 )
 from pydantic import BaseModel, computed_field
 from typing import Optional
-from datetime import datetime, time, timezone, timedelta
+from datetime import datetime, time, timezone, timedelta, date as date_type
 import uuid
+import subprocess
+import os
 
 from excel_export import export_to_excel
 import threading
@@ -60,8 +71,6 @@ def export_in_background():
 
 # ── TIMEZONE ──────────────────────────────────────────────────────────────────
 # Morocco has been permanently on UTC+1 since October 2018 (no DST).
-# We use a fixed-offset timezone instead of the named "Africa/Casablanca"
-# zone to avoid the tzdata package returning the wrong offset on Windows.
 TZ = timezone(timedelta(hours=1), name="Morocco/UTC+1")
 
 
@@ -85,39 +94,32 @@ def to_utc_naive(dt: datetime) -> datetime:
 
 
 # ── TIME WINDOWS ──────────────────────────────────────────────────────────────
-#
-#  CHECK-IN
-#  ──────────────────────────────────────────────────────
-#  before 08:30  │  08:30 ── 09:35  │  09:36 ── 10:10  │  after 10:10
-#   ❌ rejected  │    on_time        │    late           │  missed_checkin ⚠️
-#
-CHECKIN_OPEN  = time(8,  30)   # Before this → hard reject (too early)
-CHECKIN_LATE  = time(9,  35)   # After this  → "late"
-CHECKIN_CLOSE = time(10, 10)   # After this  → "missed_checkin" (not rejected)
+CHECKIN_OPEN  = time(8,  30)
+CHECKIN_LATE  = time(9,  35)
+CHECKIN_CLOSE = time(10, 10)
 
-#  CHECK-OUT
-#  ──────────────────────────────────────────────────────
-#  before 15:00        │  15:00 ── 17:00  │  after 17:00
-#  early_checkout ⚠️   │    completed     │  missed_checkout ⚠️
-#
-CHECKOUT_OPEN  = time(15, 0)   # Before this → "early_checkout"
-CHECKOUT_CLOSE = time(17, 0)   # After this  → "missed_checkout"
+CHECKOUT_OPEN  = time(15, 0)
+CHECKOUT_CLOSE = time(17, 0)
 
-# Minimum gap between any two scans for the same intern (global guard)
+# Standard credited work hours when checkout is auto-closed at night
+# An intern who arrived on time (08:30) and forgot checkout gets credited
+# min(CHECKOUT_CLOSE - arrival_time, STANDARD_WORK_HOURS)
+STANDARD_WORK_HOURS = 8.0
+
+# Minimum gap between any two scans for the same intern
 DOUBLE_SCAN_MINUTES = 5
 
 # Statuses that should raise an alarm on the admin dashboard
 ATTENTION_STATUSES = {"missed_checkin", "early_checkout", "missed_checkout", "absent"}
 
+# Minimum number of intern-days of data before ML models are trusted
+# Below this threshold the system falls back to rule-based labels
+ML_MIN_SAMPLES = 30
+
 
 # ── CHECKIN STATUS RESOLVER ───────────────────────────────────────────────────
 
 def resolve_checkin_status(t: time) -> str:
-    """
-    Map scan time to a check-in status string.
-    Only raises for scans before the window opens (08:30).
-    Everything else is recorded, never rejected.
-    """
     if t < CHECKIN_OPEN:
         raise HTTPException(
             status_code=400,
@@ -127,17 +129,12 @@ def resolve_checkin_status(t: time) -> str:
         return "on_time"
     if t <= CHECKIN_CLOSE:
         return "late"
-    # After 10:10: intern came very late — record it, do not lose the data
     return "missed_checkin"
 
 
 # ── CHECKOUT STATUS RESOLVER ──────────────────────────────────────────────────
 
 def resolve_checkout_status(t: time) -> str:
-    """
-    Map scan time to a check-out status string.
-    Never raises — every checkout scan is recorded.
-    """
     if t < CHECKOUT_OPEN:
         return "early_checkout"
     if t <= CHECKOUT_CLOSE:
@@ -148,15 +145,9 @@ def resolve_checkout_status(t: time) -> str:
 # ── DOUBLE-SCAN GUARD ─────────────────────────────────────────────────────────
 
 def check_double_scan(daily: DailyStatus, now: datetime) -> None:
-    """
-    Reject any scan arriving within DOUBLE_SCAN_MINUTES of the last recorded
-    scan. Uses departure_time if present, otherwise arrival_time.
-    Global: applies regardless of whether this would be a check-in or check-out.
-    """
     last_scan = daily.departure_time or daily.arrival_time
     if last_scan is None:
         return
-
     gap_minutes = (now - to_local(last_scan)).total_seconds() / 60
     if gap_minutes < DOUBLE_SCAN_MINUTES:
         remaining = int(DOUBLE_SCAN_MINUTES - gap_minutes)
@@ -171,13 +162,29 @@ def check_double_scan(daily: DailyStatus, now: datetime) -> None:
 
 # ── DB HELPER ─────────────────────────────────────────────────────────────────
 
-def get_today_record(intern_id: str, today: datetime.date, db: Session):
+def get_today_record(intern_id: str, today: date_type, db: Session):
     """Return today's DailyStatus for an intern, or None if no scan yet."""
     return db.query(DailyStatus).filter(
         DailyStatus.intern_id == intern_id,
         DailyStatus.date >= datetime(today.year, today.month, today.day),
-        DailyStatus.date <  datetime(today.year, today.month, today.day, 23, 59, 59),
+        DailyStatus.date <  datetime(today.year, today.month, today.day) + timedelta(days=1),
     ).first()
+
+
+def get_unclosed_checkins(today: date_type, db: Session):
+    """
+    Return all DailyStatus rows for today where the intern checked in
+    but never checked out. These are candidates for auto-close.
+    """
+    return db.query(DailyStatus).filter(
+        DailyStatus.date >= datetime(today.year, today.month, today.day),
+        DailyStatus.date <  datetime(today.year, today.month, today.day, 23, 59, 59),
+        DailyStatus.arrival_time  != None,   # noqa: E711 — SQLAlchemy needs !=
+        DailyStatus.departure_time == None,  # noqa: E711
+    ).all()
+
+
+# ── PYDANTIC SCHEMAS ──────────────────────────────────────────────────────────
 
 class DailyStatusOut(BaseModel):
     id: str
@@ -187,8 +194,6 @@ class DailyStatusOut(BaseModel):
     checkout_status: Optional[str]
     needs_attention: Optional[bool]
     work_duration: Optional[float]
-
-    # These will be converted from UTC → UTC+1 before sending
     date: Optional[datetime]
     arrival_time: Optional[datetime]
     departure_time: Optional[datetime]
@@ -196,13 +201,24 @@ class DailyStatusOut(BaseModel):
     model_config = {"from_attributes": True}
 
     def model_post_init(self, __context):
-        # Convert all datetime fields to Morocco local time
         if self.date:
             self.date = to_local(self.date)
         if self.arrival_time:
             self.arrival_time = to_local(self.arrival_time)
         if self.departure_time:
             self.departure_time = to_local(self.departure_time)
+
+
+class ScanRequest(BaseModel):
+    intern_id: str
+
+
+class InternCreate(BaseModel):
+    first_name: str
+    last_name: str
+    department_id: str
+
+
 # ── APP SETUP ─────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="CHU Plateforme de Pointage")
@@ -223,40 +239,24 @@ def get_db():
     finally:
         db.close()
 
-
-class ScanRequest(BaseModel):
-    intern_id: str
-
-
-# class InternCreate(BaseModel):
-    # first_name: str
-    # last_name: str
-    # department_id: str
-
-
 # ── /scan ─────────────────────────────────────────────────────────────────────
 
 @app.post("/scan")
 def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
 
-    # 1. Verify intern exists
     intern = db.query(Intern).filter(Intern.id == request.intern_id).first()
     if not intern:
         raise HTTPException(status_code=404, detail="Stagiaire introuvable")
 
-    # 2. Current Morocco local time
     now   = now_local()
     today = now.date()
     t     = now.time()
 
-    # 3. Fetch today's record (None if first scan of the day)
     daily = get_today_record(request.intern_id, today, db)
 
     # ── CASE A: No record today → CHECK-IN ───────────────────────────────
     if daily is None:
-        checkin_status = resolve_checkin_status(t)  # raises only if before 08:30
-
-        # needs_attention is True for any anomaly — dashboard shows alarm icon
+        checkin_status  = resolve_checkin_status(t)
         needs_attention = checkin_status in ATTENTION_STATUSES
 
         daily = DailyStatus(
@@ -276,17 +276,17 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
         
 
         labels = {
-            "on_time":       "✅ À l'heure",
-            "late":          "⏰ En retard",
-            "missed_checkin":"⚠️ Hors créneau — enregistré comme missed check-in",
+            "on_time":        "✅ À l'heure",
+            "late":           "⏰ En retard",
+            "missed_checkin": "⚠️ Hors créneau — enregistré comme missed check-in",
         }
 
        
         export_in_background()   # ← la nouvell ligne
     
         return {
-            "event":          "check_in",
-            "checkin_status": checkin_status,
+            "event":           "check_in",
+            "checkin_status":  checkin_status,
             "needs_attention": needs_attention,
             "message": (
                 f"Bonjour {intern.first_name} ! "
@@ -294,26 +294,23 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
             ),
         }
 
-    # ── Double-scan guard applies to all remaining cases ──────────────────
+    # ── Double-scan guard ─────────────────────────────────────────────────
     check_double_scan(daily, now)
 
     # ── CASE B: Checked in, no checkout yet → CHECK-OUT ──────────────────
     if daily.arrival_time and not daily.departure_time:
 
         checkout_status = resolve_checkout_status(t)
-
-        arr_local = to_local(daily.arrival_time)
-        duration  = round((now - arr_local).total_seconds() / 3600, 2)
+        arr_local       = to_local(daily.arrival_time)
+        duration        = round((now - arr_local).total_seconds() / 3600, 2)
 
         daily.departure_time  = to_utc_naive(now)
         daily.work_duration   = duration
         daily.checkout_status = checkout_status
 
-        # Override daily status for checkout anomalies so the dashboard
-        # shows the most critical flag (not the check-in punctuality)
         if checkout_status in ATTENTION_STATUSES:
             daily.status          = checkout_status
-            daily.needs_attention = True   # trigger dashboard alarm
+            daily.needs_attention = True
 
         db.commit()
 
@@ -326,49 +323,115 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
         export_in_background()
         
         return {
-            "event":            "check_out",
-            "checkout_status":  checkout_status,
-            "needs_attention":  checkout_status in ATTENTION_STATUSES,
-            "work_duration":    duration,
-            "message":          f"Au revoir {intern.first_name} ! {labels[checkout_status]}",
+            "event":           "check_out",
+            "checkout_status": checkout_status,
+            "needs_attention": checkout_status in ATTENTION_STATUSES,
+            "work_duration":   duration,
+            "message":         f"Au revoir {intern.first_name} ! {labels[checkout_status]}",
         }
 
-    # ── CASE C: Both already recorded — nothing to do ────────────────────
+    # ── CASE C: Both already recorded ────────────────────────────────────
     return {
         "event":   "already_complete",
         "message": f"Pointage déjà complet pour aujourd'hui ({intern.first_name})",
     }
 
 
-# ── /admin/mark-absences ──────────────────────────────────────────────────────
+# ── /admin/auto-close-checkouts ───────────────────────────────────────────────
 
-@app.post("/admin/mark-absences", tags=["Administration"])
-def mark_absences(
-    db: Session = Depends(get_db),
-    admin: Admin = Depends(get_current_admin)
-):
+@app.post("/admin/auto-close-checkouts", tags=["Administration"])
+def auto_close_checkouts(db: Session = Depends(get_db)):
     """
-    Auto-record 'absent' for every intern with no scan today.
-    Call once at end of day (e.g. cron at 18:00, or a dashboard button).
+    Auto-close any intern who checked in today but never checked out.
 
-    Interns who scanned but missed checkout already have a record —
-    this endpoint does not touch them.
+    Called nightly (e.g. cron at 23:00) BEFORE mark-absences.
+
+    Work duration logic:
+      - We credit the intern up to CHECKOUT_CLOSE (17:00), not up to now.
+        This is fairer — they should not be penalised for a system-level close.
+      - We then cap the result at STANDARD_WORK_HOURS (8h) so a very early
+        arrival doesn't inflate the figure.
+      - Formula: min(CHECKOUT_CLOSE - arrival_time_local, STANDARD_WORK_HOURS)
+
+    Status logic:
+      - checkout_status  → always "missed_checkout"
+      - status           → "missed_checkout" UNLESS already "missed_checkin"
+                           (we never downgrade a worse existing status)
+      - needs_attention  → always True
     """
     now   = now_local()
     today = now.date()
 
-    # Collect intern IDs that already have a record today
+    unclosed = get_unclosed_checkins(today, db)
+    closed_count = 0
+
+    for daily in unclosed:
+        arr_local = to_local(daily.arrival_time)
+
+        # Credit hours up to CHECKOUT_CLOSE (17:00), capped at STANDARD_WORK_HOURS
+        checkout_close_dt = now.replace(
+            hour=CHECKOUT_CLOSE.hour,
+            minute=CHECKOUT_CLOSE.minute,
+            second=0,
+            microsecond=0,
+        )
+        credited_hours = round(
+            min(
+                (checkout_close_dt - arr_local).total_seconds() / 3600,
+                STANDARD_WORK_HOURS,
+            ),
+            2,
+        )
+        # Guard against negative duration (e.g. very late missed_checkin arrivals)
+        credited_hours = max(credited_hours, 0.0)
+
+        # Set a virtual departure time of CHECKOUT_CLOSE for record-keeping
+        virtual_departure = now.replace(
+            hour=CHECKOUT_CLOSE.hour,
+            minute=CHECKOUT_CLOSE.minute,
+            second=0,
+            microsecond=0,
+        )
+
+        daily.departure_time  = to_utc_naive(virtual_departure)
+        daily.work_duration   = credited_hours
+        daily.checkout_status = "missed_checkout"
+        daily.needs_attention = True
+
+        # Never overwrite a worse checkin status with missed_checkout
+        if daily.status != "missed_checkin":
+            daily.status = "missed_checkout"
+
+        closed_count += 1
+
+    db.commit()
+
+    return {
+        "message": f"✅ {closed_count} checkout(s) automatiquement fermé(s) pour {today}",
+        "date":    str(today),
+        "count":   closed_count,
+        "note":    (
+            f"Durée créditée = min(heures jusqu'à {CHECKOUT_CLOSE.strftime('%H:%M')}, "
+            f"{STANDARD_WORK_HOURS}h) par stagiaire"
+        ),
+    }
+
+
+# ── /admin/mark-absences ──────────────────────────────────────────────────────
+
+def _mark_absences_logic(db: Session) -> dict:
+    """Core absence-marking logic, callable without auth."""
+    now   = now_local()
+    today = now.date()
     scanned_today = {
         row.intern_id
         for row in db.query(DailyStatus.intern_id).filter(
             DailyStatus.date >= datetime(today.year, today.month, today.day),
-            DailyStatus.date <  datetime(today.year, today.month, today.day, 23, 59, 59),
+            DailyStatus.date <  datetime(today.year, today.month, today.day) + timedelta(days=1),
         ).all()
     }
-
     all_interns  = db.query(Intern).all()
     absent_count = 0
-
     for intern in all_interns:
         if intern.id not in scanned_today:
             db.add(DailyStatus(
@@ -381,19 +444,179 @@ def mark_absences(
                 checkin_status=None,
                 checkout_status=None,
                 work_duration=0.0,
-                needs_attention=True,   # absent always triggers dashboard alarm
+                needs_attention=True,
             ))
             absent_count += 1
-
     db.commit()
+    return {"message": f"✅ {absent_count} stagiaire(s) marqué(s) absent(s) pour {today}",
+            "date": str(today), "count": absent_count}
+
+@app.post("/admin/mark-absences", tags=["Administration"])
+def mark_absences(db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
+    return _mark_absences_logic(db)
+
+# ── /admin/run-nightly-pipeline ───────────────────────────────────────────────
+
+@app.post("/admin/run-nightly-pipeline", tags=["Administration"])
+def run_nightly_pipeline(db: Session = Depends(get_db)):
+    """
+    Master nightly job. Runs all steps in order:
+      1. Auto-close forgotten checkouts
+      2. Mark absent interns
+      3. Run ETL (transform.py) → refreshes features table + features.csv
+      4. Retrain ML models (ml/train.py) → overwrites .pkl files
+
+    Trigger via cron at 23:00 on weekdays:
+      0 23 * * 1-5  curl -s -X POST http://localhost:8000/admin/run-nightly-pipeline
+
+    Or call manually from the admin dashboard during development.
+    """
+    results = {}
+
+    # ── Step 1: Auto-close checkouts ─────────────────────────────────────
+    try:
+        step1 = auto_close_checkouts(db)
+        results["step1_auto_close"] = step1
+    except Exception as e:
+        results["step1_auto_close"] = {"error": str(e)}
+
+    # ── Step 2: Mark absences ─────────────────────────────────────────────
+    try:
+        step2 = mark_absences(db)
+        results["step2_mark_absences"] = step2
+    except Exception as e:
+        results["step2_mark_absences"] = {"error": str(e)}
+
+    # ── Step 3: ETL ───────────────────────────────────────────────────────
+    try:
+        etl_result = subprocess.run(
+            ["python", "etl/transform.py"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        results["step3_etl"] = {
+            "returncode": etl_result.returncode,
+            "stdout":     etl_result.stdout[-500:] if etl_result.stdout else "",
+            "stderr":     etl_result.stderr[-300:] if etl_result.stderr else "",
+        }
+    except Exception as e:
+        results["step3_etl"] = {"error": str(e)}
+
+    # ── Step 4: ML retrain ────────────────────────────────────────────────
+    ml_script = os.path.join("ml", "train.py")
+    if os.path.exists(ml_script):
+        try:
+            ml_result = subprocess.run(
+                ["python", ml_script],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            results["step4_ml_retrain"] = {
+                "returncode": ml_result.returncode,
+                "stdout":     ml_result.stdout[-500:] if ml_result.stdout else "",
+                "stderr":     ml_result.stderr[-300:] if ml_result.stderr else "",
+            }
+        except Exception as e:
+            results["step4_ml_retrain"] = {"error": str(e)}
+    else:
+        results["step4_ml_retrain"] = {
+            "skipped": True,
+            "reason":  "ml/train.py not found yet — will run once ML module is added",
+        }
+
     return {
-        "message": f"✅ {absent_count} stagiaire(s) marqué(s) absent(s) pour {today}",
-        "date":    str(today),
-        "count":   absent_count,
+        "message": "✅ Pipeline nightly terminé",
+        "ran_at":  now_local().isoformat(),
+        "results": results,
     }
 
 
-# ── OTHER ROUTES (unchanged) ──────────────────────────────────────────────────
+# ── /ml/predictions ───────────────────────────────────────────────────────────
+
+@app.get("/ml/predictions", tags=["ML"])
+def get_ml_predictions(db: Session = Depends(get_db)):
+    """
+    Returns the latest risk prediction and anomaly score per intern.
+
+    - If ml/predict.py exists and models are trained → returns ML predictions.
+    - Otherwise → returns rule-based labels from features.csv (cold start).
+
+    Dashboard calls this endpoint. No ML knowledge needed on the frontend:
+    just read risk_label, risk_confidence, is_anomaly, anomaly_score.
+
+    Response shape per intern:
+    {
+        "intern_id":        "uuid",
+        "full_name":        "Prénom Nom",
+        "department":       "Cardiologie",
+        "risk_label":       "Faible" | "Moyen" | "Élevé",
+        "risk_confidence":  0.91,          # 0–1, null if rule-based
+        "is_anomaly":       false,
+        "anomaly_score":    -0.12,         # more negative = more anomalous, null if rule-based
+        "source":           "ml" | "rules" # so dashboard can show a badge
+    }
+    """
+    predict_script = os.path.join("ml", "predict.py")
+
+    if os.path.exists(predict_script):
+        # ML models exist — run predict.py and return its output
+        try:
+            result = subprocess.run(
+                ["python", predict_script, "--output", "json"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                import json
+                return json.loads(result.stdout)
+        except Exception:
+            pass  # Fall through to rule-based
+
+    # ── Cold start / fallback: rule-based labels from features.csv ────────
+    features_path = os.path.join("etl", "features.csv")
+    if not os.path.exists(features_path):
+        raise HTTPException(
+            status_code=503,
+            detail="Pas encore de données de features. Lancez d'abord le pipeline ETL.",
+        )
+
+    import csv
+    predictions = []
+
+    # Build a quick intern lookup: id → (full_name, department_name)
+    interns = db.query(Intern).all()
+    departments = {d.id: d.name for d in db.query(Department).all()}
+    intern_map = {
+        i.id: {
+            "full_name":   f"{i.first_name} {i.last_name}",
+            "department":  departments.get(i.department_id, "—"),
+        }
+        for i in interns
+    }
+
+    with open(features_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            intern_id = row["intern_id"]
+            info = intern_map.get(intern_id, {"full_name": "—", "department": "—"})
+            predictions.append({
+                "intern_id":       intern_id,
+                "full_name":       info["full_name"],
+                "department":      info["department"],
+                "risk_label":      row.get("risk_label", "—"),
+                "risk_confidence": None,   # not available in rule-based mode
+                "is_anomaly":      False,  # not available in rule-based mode
+                "anomaly_score":   None,
+                "source":          "rules",
+            })
+
+    return predictions
+
+
+# ── OTHER ROUTES ──────────────────────────────────────────────────────────────
 
 @app.get("/interns")
 def list_interns(db: Session = Depends(get_db)):
@@ -429,15 +652,14 @@ def add_new_intern(
         }
     except Exception as e:
         db.rollback()
-        print(f"❌ REAL ERROR: {e}")  # ← this will show in uvicorn terminal
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)  # ← this will show in browser
-        )
+        print(f"❌ REAL ERROR: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/departments")
 def list_departments(db: Session = Depends(get_db)):
     return db.query(Department).all()
+
 
 @app.delete("/interns/{intern_id}", tags=["Administration"])
 def delete_intern(
