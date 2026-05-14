@@ -1582,6 +1582,11 @@
         document.getElementById("app").classList.remove("visible");
         document.getElementById("login-overlay").classList.remove("hidden");
         document.getElementById("inp-password").value = "";
+         // Empêche le retour arrière vers le dashboard
+        history.pushState(null, '', window.location.href);
+        window.addEventListener('popstate', function() {
+        history.pushState(null, '', window.location.href);
+        });
       }
 
       function authHeaders() {
@@ -2957,5 +2962,42 @@
         }
       })();
     </script>
+    <script>
+     // Sécurité : empêche l'accès au dashboard via le bouton "Précédent"
+    window.addEventListener('pageshow', function(event) {
+      const saved = sessionStorage.getItem('chu_auth'); // ← ton vrai stockage
+
+      if (!saved) {
+        // Pas de session → afficher login, cacher app
+        document.getElementById('app').classList.remove('visible');
+        document.getElementById('login-overlay').classList.remove('hidden');
+        return;
+      }
+
+      if (event.persisted) {
+      // Page vient du cache navigateur → vérifier le token côté serveur
+         try {
+           const auth = JSON.parse(saved);
+           fetch('http://127.0.0.1:8000/auth/admins', {
+             headers: { 'Authorization': 'Bearer ' + auth.access_token }
+           }).then(res => {
+             if (res.status === 401 || res.status === 403) {
+               sessionStorage.removeItem('chu_auth');
+               document.getElementById('app').classList.remove('visible');
+               document.getElementById('login-overlay').classList.remove('hidden');
+              }
+           }).catch(() => {
+             sessionStorage.removeItem('chu_auth');
+             window.location.replace('/');
+           });
+         } catch {
+           sessionStorage.removeItem('chu_auth');
+           window.location.replace('/');
+         }
+      }
+    });
+</script>
+
+     
   </body>
 </html>

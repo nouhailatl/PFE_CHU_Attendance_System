@@ -231,6 +231,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    # Routes publiques qui peuvent être cachées
+    public_routes = ["/", "/auth/login", "/docs", "/openapi.json", "/static"]
+    is_public = any(request.url.path.startswith(r) for r in public_routes)
+    if not is_public:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    # Routes publiques qui peuvent être cachées
+    public_routes = ["/", "/auth/login", "/docs", "/openapi.json", "/static"]
+    is_public = any(request.url.path.startswith(r) for r in public_routes)
+    if not is_public:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 def get_db():
     db = SessionLocal()
