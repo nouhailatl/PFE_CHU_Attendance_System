@@ -42,7 +42,7 @@ All comparisons use Morocco local time (UTC+1, fixed offset).
 """
 from dotenv import load_dotenv
 load_dotenv()
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -223,6 +223,7 @@ class InternCreate(BaseModel):
 
 app = FastAPI(title="CHU Plateforme de Pointage")
 app.mount("/static", StaticFiles(directory="."), name="static")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -234,17 +235,6 @@ app.add_middleware(
 @app.middleware("http")
 async def add_no_cache_headers(request: Request, call_next):
     response = await call_next(request)
-    # Routes publiques qui peuvent être cachées
-    public_routes = ["/", "/auth/login", "/docs", "/openapi.json", "/static"]
-    is_public = any(request.url.path.startswith(r) for r in public_routes)
-    if not is_public:
-        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-    return response@app.middleware("http")
-async def add_no_cache_headers(request: Request, call_next):
-    response = await call_next(request)
-    # Routes publiques qui peuvent être cachées
     public_routes = ["/", "/auth/login", "/docs", "/openapi.json", "/static"]
     is_public = any(request.url.path.startswith(r) for r in public_routes)
     if not is_public:
@@ -252,6 +242,7 @@ async def add_no_cache_headers(request: Request, call_next):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
+
 
 def get_db():
     db = SessionLocal()

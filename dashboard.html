@@ -1585,7 +1585,7 @@
          // Empêche le retour arrière vers le dashboard
         history.pushState(null, '', window.location.href);
         window.addEventListener('popstate', function() {
-        history.pushState(null, '', window.location.href);
+            history.pushState(null, '', window.location.href);
         });
       }
 
