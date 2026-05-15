@@ -80,9 +80,27 @@ def creer_badge_pro(nom_stagiaire: str, id_unique: str, service_name: str) -> st
     c.drawCentredString(W / 2, H - 45 * mm, name_text)
 
     # ── SERVICE  (jsPDF: fontSize=10, y=53, grey) ──────────────────────────────
+    service_text = f"SERVICE : {service_name.upper()}"
     c.setFillColor(GREY_TEXT)
     c.setFont("Helvetica", 10)
-    c.drawCentredString(W / 2, H - 53 * mm, f"SERVICE : {service_name.upper()}")
+
+    max_width = W - 8 * mm
+    text_width = c.stringWidth(service_text, "Helvetica", 10)
+
+    if text_width <= max_width:
+        c.drawCentredString(W / 2, H - 53 * mm, service_text)
+    else:
+        # Split into 2 lines
+        words = service_text.split()
+        line1, line2 = "", ""
+        for word in words:
+            test = (line1 + " " + word).strip()
+            if c.stringWidth(test, "Helvetica", 10) <= max_width:
+                line1 = test
+            else:
+                line2 = (line2 + " " + word).strip()
+        c.drawCentredString(W / 2, H - 50 * mm, line1)
+        c.drawCentredString(W / 2, H - 55 * mm, line2)
 
     # ── QR CODE FRAME  (jsPDF: rect(20, 62, 45, 45)) ──────────────────────────
     #  In jsPDF coords: x=20mm, y_top=62mm, w=45mm, h=45mm
