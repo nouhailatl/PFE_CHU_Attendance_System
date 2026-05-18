@@ -89,4 +89,4 @@ class Admin(Base):
 
 
 Base.metadata.create_all(bind=engine)
-print(f"✅ Connecté à : {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'SQLite local'}")
+print(f"[OK] Connected to: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'SQLite local'}")

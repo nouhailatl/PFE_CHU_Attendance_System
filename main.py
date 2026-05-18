@@ -44,7 +44,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Merged Upstream (Request) and Stashed (status) changes here
-from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status, UploadFile, File
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -66,8 +66,12 @@ import uuid
 import subprocess
 import os
 from fastapi import Body
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 import tempfile
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+import io
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
 
@@ -692,11 +696,6 @@ def auto_close_checkouts(db: Session = Depends(get_db)):
 
 # ── DEPARTMENT MANAGEMENT ─────────────────────────────────────────────────────
  
-from fastapi import Body
-from fastapi.responses import FileResponse
-import tempfile
- 
- 
 @app.post("/departments", tags=["Administration"])
 def create_department(
     name: str = Body(..., embed=True),
@@ -990,6 +989,260 @@ def add_new_intern(
         db.rollback()
         print(f"❌ REAL ERROR: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── ★ EXCEL IMPORT ENDPOINTS ────────────────────────────────────────────────
+def _generate_import_template():
+    """Génère un fichier Excel template pour l'import de stagiaires."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Stagiaires"
+    
+    # En-têtes
+    headers = ["prenom", "nom", "departement", "type_stagiaire", "ecole", "annee_etudes", "date_debut", "date_fin", "email"]
+    ws.append(headers)
+    
+    # Style des en-têtes
+    header_fill = PatternFill(start_color="1E88E5", end_color="1E88E5", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    
+    # Exemple de ligne
+    ws.append(["Jean", "Dupont", "Urgences", "Médecin", "Université de Marrakech", "4ème année", "2026-01-15", "2026-03-15", "jean.dupont@email.com"])
+    ws.append(["Marie", "Curie", "Pédiatrie", "Infirmier", "École d'Infirmiers", "2ème année", "2026-02-01", "2026-04-01", "marie.curie@email.com"])
+    
+    # Largeurs de colonne
+    ws.column_dimensions['A'].width = 15
+    ws.column_dimensions['B'].width = 15
+    ws.column_dimensions['C'].width = 18
+    ws.column_dimensions['D'].width = 16
+    ws.column_dimensions['E'].width = 20
+    ws.column_dimensions['F'].width = 14
+    ws.column_dimensions['G'].width = 14
+    ws.column_dimensions['H'].width = 14
+    ws.column_dimensions['I'].width = 20
+    
+    # Retourner en mémoire
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    return stream
+
+
+@app.get("/interns/import/template", tags=["Import Excel"])
+def download_import_template():
+    """Télécharge le template Excel pour l'import de stagiaires."""
+    stream = _generate_import_template()
+    return StreamingResponse(
+        iter([stream.getvalue()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Template_Import_Stagiaires.xlsx"}
+    )
+
+
+@app.post("/interns/import/validate", tags=["Import Excel"])
+async def validate_import_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
+    """Valide le fichier d'import sans modifier la base de données."""
+    
+    # Vérifier les permissions
+    if admin.role not in (AdminRole.DFRI.value, AdminRole.CHEF_SERVICE.value):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seul DFRI et Chef de Service peuvent importer des stagiaires"
+        )
+    
+    try:
+        # Lire le fichier
+        contents = await file.read()
+        file.file.seek(0)
+        
+        # Déterminer le format (xlsx ou csv)
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(contents), dtype=str)
+        else:
+            df = pd.read_excel(io.BytesIO(contents), sheet_name=0, dtype=str)
+        
+        # Colonnes obligatoires (en minuscules)
+        df.columns = df.columns.str.lower().str.strip()
+        required_cols = ['prenom', 'nom', 'departement']
+        
+        errors_list = []
+        valid_rows = []
+        
+        # Vérifier les colonnes obligatoires
+        for col in required_cols:
+            if col not in df.columns:
+                errors_list.append({
+                    "row": 1,
+                    "message": f"Colonne obligatoire manquante : '{col}'"
+                })
+                break
+        
+        if errors_list:
+            return {
+                "valid_count": 0,
+                "errors_count": len(errors_list),
+                "errors_details": errors_list,
+                "preview_rows": []
+            }
+        
+        # Récupérer la liste des départements
+        departments = db.query(Department).all()
+        dept_map = {d.name.lower(): d for d in departments}
+        
+        # Valider chaque ligne
+        for idx, row in df.iterrows():
+            row_num = idx + 2  # +1 pour Excel (0-indexed en python), +1 pour header
+            prenom = str(row.get('prenom', '')).strip() if pd.notna(row.get('prenom')) else ''
+            nom = str(row.get('nom', '')).strip() if pd.notna(row.get('nom')) else ''
+            departement = str(row.get('departement', '')).strip() if pd.notna(row.get('departement')) else ''
+            
+            # Ignorer les lignes vides
+            if not prenom and not nom and not departement:
+                continue
+            
+            row_errors = []
+            
+            # Validations
+            if not prenom:
+                row_errors.append("Prénom vide")
+            if not nom:
+                row_errors.append("Nom de famille vide")
+            if not departement:
+                row_errors.append("Département vide")
+            elif departement.lower() not in dept_map:
+                row_errors.append(f"Service '{departement}' inexistant (disponibles: {', '.join([d.name for d in departments])})")
+            
+            if row_errors:
+                errors_list.append({
+                    "row": row_num,
+                    "message": "; ".join(row_errors)
+                })
+            else:
+                valid_rows.append({
+                    "first_name": prenom,
+                    "last_name": nom,
+                    "department_name": departement,
+                    "department_id": dept_map[departement.lower()].id
+                })
+        
+        # Retourner la validation
+        preview = valid_rows[:5]
+        return {
+            "valid_count": len(valid_rows),
+            "errors_count": len(errors_list),
+            "errors_details": errors_list,
+            "preview_rows": preview
+        }
+    
+    except Exception as e:
+        return {
+            "valid_count": 0,
+            "errors_count": 1,
+            "errors_details": [{"row": 0, "message": f"Erreur de lecture fichier: {str(e)}"}],
+            "preview_rows": []
+        }
+
+
+@app.post("/interns/import", tags=["Import Excel"])
+async def import_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin)
+):
+    """Importe les stagiaires depuis un fichier Excel/CSV."""
+    
+    # Vérifier les permissions
+    if admin.role not in (AdminRole.DFRI.value, AdminRole.CHEF_SERVICE.value):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seul DFRI et Chef de Service peuvent importer des stagiaires"
+        )
+    
+    try:
+        # Lire le fichier
+        contents = await file.read()
+        
+        # Déterminer le format
+        if file.filename.endswith('.csv'):
+            df = pd.read_excel(io.BytesIO(contents), sheet_name=0, dtype=str)
+        else:
+            df = pd.read_excel(io.BytesIO(contents), sheet_name=0, dtype=str)
+        
+        # Normaliser les colonnes
+        df.columns = df.columns.str.lower().str.strip()
+        
+        # Récupérer les départements
+        departments = db.query(Department).all()
+        dept_map = {d.name.lower(): d for d in departments}
+        
+        created_count = 0
+        failed_rows = []
+        
+        # Insérer les lignes valides
+        for idx, row in df.iterrows():
+            try:
+                prenom = str(row.get('prenom', '')).strip() if pd.notna(row.get('prenom')) else ''
+                nom = str(row.get('nom', '')).strip() if pd.notna(row.get('nom')) else ''
+                departement = str(row.get('departement', '')).strip() if pd.notna(row.get('departement')) else ''
+                
+                # Ignorer les lignes vides
+                if not prenom and not nom and not departement:
+                    continue
+                
+                # Validations
+                if not prenom or not nom or not departement:
+                    failed_rows.append(idx + 2)
+                    continue
+                
+                if departement.lower() not in dept_map:
+                    failed_rows.append(idx + 2)
+                    continue
+                
+                # Chef de Service peut seulement importer dans son département
+                if admin.role == AdminRole.CHEF_SERVICE.value:
+                    if dept_map[departement.lower()].id != admin.department_id:
+                        failed_rows.append(idx + 2)
+                        continue
+                
+                # Créer le stagiaire
+                new_uuid = str(uuid.uuid4())
+                new_intern = Intern(
+                    id=new_uuid,
+                    first_name=prenom,
+                    last_name=nom,
+                    department_id=dept_map[departement.lower()].id
+                )
+                db.add(new_intern)
+                created_count += 1
+            
+            except Exception as e:
+                print(f"Erreur insertion ligne {idx + 2}: {e}")
+                failed_rows.append(idx + 2)
+        
+        # Confirmer la transaction
+        db.commit()
+        
+        return {
+            "message": f"Import terminé : {created_count} stagiaires créés",
+            "created_count": created_count,
+            "failed_rows": failed_rows
+        }
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Erreur import fichier: {str(e)}"
+        )
 
 
 @app.get("/departments")
