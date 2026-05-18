@@ -29,8 +29,10 @@ ACCESS_TOKEN_EXPIRE_HOURS = 8
 
 # ── ROLES (Enum prevents silent typos) ────────────────────────────────────────
 class AdminRole(str, Enum):
-    SUPER_ADMIN = "super_admin"
-    SUPERVISOR  = "supervisor"
+    DFRI          = "dfri"              # DFRI: all read/write + audit log
+    DIRECTEUR     = "directeur"         # Director: all read-only + audit log view
+    CHEF_SERVICE  = "chef_service"      # Department head: own dept only, manage interns
+    SECRETAIRE    = "secretaire"        # Secretary: global view read-only, export, alerts
 
 # ── PASSWORD HASHING ──────────────────────────────────────────────────────────
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -136,16 +138,33 @@ def get_current_admin(
 # ── FASTAPI DEPENDENCY — super_admin only ─────────────────────────────────────
 def require_super_admin(admin: Admin = Depends(get_current_admin)) -> Admin:
     """
-    Inject into routes that require super_admin role only.
-    Supervisors will get HTTP 403.
+    Inject into routes that require DFRI (super admin) role only.
+    Non-DFRI users will get HTTP 403.
     """
-    if admin.role != AdminRole.SUPER_ADMIN.value:
+    if admin.role != AdminRole.DFRI.value:
         logger.warning(
             f"Forbidden: {admin.username} (role={admin.role}) "
-            f"attempted a super_admin action"
+            f"attempted a DFRI action"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès refusé — droits Super Admin requis"
+            detail="Accès refusé — droits DFRI requis"
+        )
+    return admin
+
+
+def require_dfri_or_chef(admin: Admin = Depends(get_current_admin)) -> Admin:
+    """
+    Inject into routes that require DFRI or Chef de Service.
+    Secretaire and Directeur will get HTTP 403.
+    """
+    if admin.role not in (AdminRole.DFRI.value, AdminRole.CHEF_SERVICE.value):
+        logger.warning(
+            f"Forbidden: {admin.username} (role={admin.role}) "
+            f"attempted a DFRI/Chef action"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès refusé"
         )
     return admin

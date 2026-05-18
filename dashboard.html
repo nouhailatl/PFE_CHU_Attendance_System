@@ -226,6 +226,21 @@
       // ── CONFIG ──────────────────────────────────────────────────────────────
       const API = "http://127.0.0.1:8000";
 
+      // ── ROLES ───────────────────────────────────────────────────────────────
+      const ROLES = {
+        DFRI:         "dfri",
+        DIRECTEUR:    "directeur",
+        CHEF_SERVICE: "chef_service",
+        SECRETAIRE:   "secretaire"
+      };
+
+      const ROLE_LABELS = {
+        dfri:         "Directeur IT",
+        directeur:    "Directeur",
+        chef_service: "Chef de Service",
+        secretaire:   "Secrétaire"
+      };
+
       // ── STATE ───────────────────────────────────────────────────────────────
       let AUTH = null;
       let CURRENT_VIEW = "global";
@@ -235,31 +250,13 @@
 
       // ── NAV ─────────────────────────────────────────────────────────────────
       const NAV_ALL = [
-        { id: "global", label: "Vue Globale", icon: "dashboard" },
-        { id: "individual", label: "Vue Individuelle", icon: "person_search" },
-        {
-          id: "department",
-          label: "Vue Départementale",
-          icon: "corporate_fare",
-          adminOnly: true,
-        },
-        {
-          id: "clusters",
-          label: "Clusters & ML",
-          icon: "hub",
-          adminOnly: true,
-        },
-        {
-          id: "alerts",
-          label: "Journal des Alertes",
-          icon: "notifications_active",
-        },
-        {
-          id: "admin",
-          label: "Administration",
-          icon: "manage_accounts",
-          adminOnly: true,
-        },
+        { id: "global", label: "Vue Globale", icon: "dashboard", roles: ["dfri", "directeur", "secretaire"] },
+        { id: "individual", label: "Vue Individuelle", icon: "person_search", roles: ["dfri", "directeur", "chef_service", "secretaire"] },
+        { id: "department", label: "Vue Départementale", icon: "corporate_fare", roles: ["dfri", "directeur", "chef_service"] },
+        { id: "clusters", label: "Clusters & ML", icon: "hub", roles: ["dfri"] },
+        { id: "alerts", label: "Journal des Alertes", icon: "notifications_active", roles: ["dfri", "directeur", "chef_service", "secretaire"] },
+        { id: "admin", label: "Administration", icon: "manage_accounts", roles: ["dfri", "chef_service"] },
+        { id: "audit", label: "Journal d'Audit", icon: "history", roles: ["dfri", "directeur"] }
       ];
 
       // ── AUTH ─────────────────────────────────────────────────────────────────
@@ -326,8 +323,24 @@
           "Content-Type": "application/json",
         };
       }
+      function userRole() {
+        return AUTH ? AUTH.role : null;
+      }
+      function isDFRI() {
+        return AUTH && AUTH.role === "dfri";
+      }
+      function isDirecteur() {
+        return AUTH && AUTH.role === "directeur";
+      }
+      function isChefService() {
+        return AUTH && AUTH.role === "chef_service";
+      }
+      function isSecretaire() {
+        return AUTH && AUTH.role === "secretaire";
+      }
+      // Old compatibility function - kept for backward compatibility
       function isSuperAdmin() {
-        return AUTH && AUTH.role === "super_admin";
+        return isDFRI();
       }
       document.addEventListener("keydown", (e) => {
         if (
@@ -360,10 +373,19 @@
           DATA.interns = await intRes.json();
           DATA.history = await attRes.json();
           DATA.departments = await dlyRes.json();
-          if (isSuperAdmin()) {
+          
+          // Load admins only for DFRI
+          if (isDFRI()) {
             const admRes = await apiFetch("/auth/admins");
             DATA.admins = admRes.ok ? await admRes.json() : [];
           }
+          
+          // Load audit log only for DFRI and Directeur
+          if (isDFRI() || isDirecteur()) {
+            const auditRes = await apiFetch("/audit/logs");
+            DATA.auditLogs = auditRes.ok ? await auditRes.json() : [];
+          }
+          
           // Update last-refresh timestamp
           const now = new Date();
           const timeStr = now.toLocaleTimeString("fr-FR", {
@@ -373,6 +395,7 @@
           });
           const el = document.getElementById("last-refresh-time");
           if (el) el.textContent = timeStr;
+          
           // Update alert bell count
           updateAlertBell();
         } catch (e) {
@@ -429,21 +452,27 @@
         document.getElementById("user-name").textContent = AUTH.username;
         document.getElementById("user-avatar").textContent =
           AUTH.username[0].toUpperCase();
-        document.getElementById("user-role").textContent = isSuperAdmin()
-          ? "Super Admin"
-          : "Superviseur";
+        document.getElementById("user-role").textContent = ROLE_LABELS[AUTH.role] || AUTH.role;
         buildNav();
         updateClock();
         setInterval(updateClock, 1000);
+        applyRolePermissions();
         await loadData();
         switchView("global");
       }
 
+      function applyRolePermissions() {
+        // Hide export button for Directeur
+        const exportBtn = document.getElementById("btn-excel-export");
+        if (exportBtn) {
+          exportBtn.style.display = isDirecteur() ? "none" : "flex";
+        }
+      }
+
       function buildNav() {
         const nav = document.getElementById("nav-links");
-        const items = isSuperAdmin()
-          ? NAV_ALL
-          : NAV_ALL.filter((n) => !n.adminOnly);
+        const role = userRole();
+        const items = NAV_ALL.filter((n) => n.roles.includes(role));
         nav.innerHTML = items
           .map(
             (n) =>
@@ -487,6 +516,7 @@
           clusters: "Clusters & ML",
           alerts: "Journal des Alertes",
           admin: "Administration",
+          audit: "Journal d'Audit",
         };
         document.getElementById("topbar-title").textContent = titles[id] || id;
         const vc = document.getElementById("view-container");
@@ -511,6 +541,9 @@
               break;
             case "admin":
               renderAdmin();
+              break;
+            case "audit":
+              renderAudit();
               break;
           }
           vc.classList.remove("fading");
@@ -690,9 +723,189 @@
 
       // ── VUE GLOBALE ──────────────────────────────────────────────────────────
       function renderGlobal() {
-        const interns = DATA.interns || [];
-        const history = DATA.history || [];
+        let interns = DATA.interns || [];
+        let history = DATA.history || [];
+        
+        // Chef de Service voit seulement son département
+        if (isChefService()) {
+          interns = interns.filter((i) => i.department_id === AUTH.department_id);
+          const internIds = interns.map((i) => i.id);
+          history = history.filter((h) => internIds.includes(h.intern_id));
+        }
+        
         const depts = DATA.departments || [];
+        const today = new Date().toDateString();
+        const todayRec = history.filter(
+          (h) => new Date(h.date).toDateString() === today,
+        );
+        const presentToday = new Set(
+          todayRec.filter((h) => h.arrival_time).map((h) => h.intern_id),
+        ).size;
+        const alertCount = history.filter((h) => h.needs_attention).length;
+        const dayMap = {};
+        history.forEach((h) => {
+          const d = fmtDate(h.date);
+          if (!dayMap[d]) dayMap[d] = { scans: 0, alerts: 0 };
+          dayMap[d].scans++;
+          if (h.needs_attention) dayMap[d].alerts++;
+        });
+        const days = Object.keys(dayMap).slice(-30);
+        const scans = days.map((d) => dayMap[d].scans);
+        const alerts = days.map((d) => dayMap[d].alerts);
+        let rFaible = 0,
+          rMoyen = 0,
+          rEleve = 0;
+        const internStatusMap = {};
+        history.forEach((h) => {
+          if (!internStatusMap[h.intern_id]) internStatusMap[h.intern_id] = 0;
+          if (h.needs_attention) internStatusMap[h.intern_id]++;
+        });
+        interns.forEach((i) => {
+          const n = internStatusMap[i.id] || 0;
+          if (n === 0) rFaible++;
+          else if (n <= 3) rMoyen++;
+          else rEleve++;
+        });
+
+        document.getElementById("view-container").innerHTML = `
+                <div class="kpi-grid">
+                  ${kpiCard("Total Stagiaires", interns.length, "group", "", "primary")}
+                  ${kpiCard("Présents Aujourd'hui", presentToday, "how_to_reg", "", "primary")}
+                  ${kpiCard("Services", isChefService() ? 1 : depts.length, "corporate_fare", "", "primary")}
+                  ${kpiCard("Alertes Actives", alertCount, "warning", "", "error")}
+                </div>
+                <div class="grid3" style="margin-bottom:16px">
+                  <div class="card"><div class="card-header"><div><h3>Activité des Scans (30j)</h3><p>Présences & anomalies quotidiennes</p></div></div><div class="card-body"><div class="chart-wrap" style="height:280px"><canvas id="ch-global"></canvas></div></div></div>
+                  <div class="card"><div class="card-header"><div><h3>Répartition Risque</h3></div></div><div class="card-body"><div class="chart-wrap" style="height:280px;display:flex;align-items:center;justify-content:center"><canvas id="ch-donut"></canvas></div></div></div>
+                </div>
+                <div class="grid2">
+                  <div class="card">
+                    <div class="card-header" style="padding-bottom:16px"><div><h3>Derniers Scans</h3></div></div>
+                    <div class="card-body" style="padding-top:0;overflow-x:auto">
+                      <table class="data-table"><thead><tr><th>Stagiaire</th><th>Arrivée</th><th>Départ</th><th>Statut</th></tr></thead><tbody>
+                        ${history
+                          .slice(-15)
+                          .reverse()
+                          .map((h) => {
+                            const intern = interns.find(
+                              (i) => i.id === h.intern_id,
+                            );
+                            const name = intern
+                              ? `${intern.first_name} ${intern.last_name}`
+                              : h.intern_id.substring(0, 8) + "…";
+                            return `<tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:8px;background:var(--primary-d);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--primary)">${name[0]}</div><span style="font-weight:600;font-size:13px">${name}</span></div></td><td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td><td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td><td>${statusBadge(h.status, h.needs_attention)}</td></tr>`;
+                          })
+                          .join("")}
+                      </tbody></table>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <div class="card-header" style="padding-bottom:16px"><div><h3>Intensité Hebdomadaire</h3><p>Densité des scans par heure/jour</p></div></div>
+                    <div class="card-body" style="padding-top:0">
+                      <div class="intensity-grid">${Array.from({ length: 84 })
+                        .map(() => {
+                          const v = Math.random();
+                          const o =
+                            v > 0.8
+                              ? "1"
+                              : v > 0.5
+                                ? ".6"
+                                : v > 0.2
+                                  ? ".25"
+                                  : ".08";
+                          return `<div class="i-cell" style="background:rgba(69,241,195,${o})"></div>`;
+                        })
+                        .join("")}</div>
+                      <div style="display:flex;justify-content:space-between;margin-top:10px">${["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-f);text-transform:uppercase">${d}</span>`).join("")}</div>
+                    </div>
+                  </div>
+                </div>`;
+
+        nextTick(() => {
+          CHARTS["global"] = new Chart(document.getElementById("ch-global"), {
+            type: "line",
+            data: {
+              labels: days,
+              datasets: [
+                {
+                  label: "Scans",
+                  data: scans,
+                  borderColor: "#45f1c3",
+                  backgroundColor: "rgba(69,241,195,.08)",
+                  fill: true,
+                  tension: 0.4,
+                  pointRadius: 2,
+                },
+                {
+                  label: "Alertes",
+                  data: alerts,
+                  borderColor: "#ffb4ab",
+                  backgroundColor: "rgba(255,180,171,.08)",
+                  fill: true,
+                  tension: 0.4,
+                  pointRadius: 2,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  labels: {
+                    color: "#bacac2",
+                    boxWidth: 10,
+                    font: { size: 11 },
+                  },
+                },
+              },
+              scales: {
+                y: {
+                  grid: { color: "#1a2130" },
+                  ticks: { color: "#85948d", font: { size: 10 } },
+                },
+                x: {
+                  grid: { display: false },
+                  ticks: {
+                    color: "#85948d",
+                    font: { size: 10 },
+                    maxTicksLimit: 8,
+                  },
+                },
+              },
+            },
+          });
+          CHARTS["donut"] = new Chart(document.getElementById("ch-donut"), {
+            type: "doughnut",
+            data: {
+              labels: ["Faible", "Moyen", "Élevé"],
+              datasets: [
+                {
+                  data: [rFaible, rMoyen, rEleve],
+                  backgroundColor: ["#45f1c3", "#ffcea6", "#ffb4ab"],
+                  borderWidth: 0,
+                  hoverOffset: 8,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: "78%",
+              plugins: {
+                legend: {
+                  position: "bottom",
+                  labels: {
+                    color: "#dce4df",
+                    usePointStyle: true,
+                    font: { size: 11 },
+                  },
+                },
+              },
+            },
+          });
+        });
+      }
         const today = new Date().toDateString();
         const todayRec = history.filter(
           (h) => new Date(h.date).toDateString() === today,
@@ -864,7 +1077,7 @@
             },
           });
         });
-      }
+    
 
       function kpiCard(label, value, icon, trend, color) {
         const iconColor =
@@ -878,7 +1091,11 @@
 
       // ── VUE INDIVIDUELLE ─────────────────────────────────────────────────────
       function renderIndividual() {
-        const interns = DATA.interns || [];
+        let interns = DATA.interns || [];
+        // Chef de Service: voir seulement ses stagiaires
+        if (isChefService()) {
+          interns = interns.filter((i) => i.department_id === AUTH.department_id);
+        }
         const history = DATA.history || [];
         if (!SELECTED_INTERN && interns.length) SELECTED_INTERN = interns[0].id;
         const intern =
@@ -1013,7 +1230,11 @@
 
       // ── VUE DÉPARTEMENTALE ───────────────────────────────────────────────────
       function renderDepartment() {
-        const depts = DATA.departments || [];
+        let depts = DATA.departments || [];
+        // Chef de Service: voir seulement son département
+        if (isChefService()) {
+          depts = depts.filter((d) => d.id === AUTH.department_id);
+        }
         const interns = DATA.interns || [];
         const history = DATA.history || [];
         const deptStats = depts.map((d) => {
@@ -1248,7 +1469,7 @@
                   <div class="card-header" style="padding-bottom:16px">
                     <div><h3>Journal des Anomalies</h3><p>${alerts.length} événement(s) nécessitant attention</p></div>
                     ${
-                      isSuperAdmin()
+                      isDFRI()
                         ? `
                       <div style="display:flex;gap:8px">
                         <button class="btn btn-danger" onclick="markAbsences()"><span class="material-symbols-outlined">event_busy</span> Marquer absences du jour</button>
@@ -1311,14 +1532,82 @@
         }
       }
 
+      // ── JOURNAL D'AUDIT ──────────────────────────────────────────────────────
+      function renderAudit() {
+        const auditLogs = DATA.auditLogs || [];
+        const sortedLogs = [...auditLogs].sort((a, b) => 
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
+
+        document.getElementById("view-container").innerHTML = `
+                <div class="card">
+                  <div class="card-header">
+                    <div>
+                      <h3>Journal d'Audit Complet</h3>
+                      <p>Toutes les actions effectuées par les utilisateurs</p>
+                    </div>
+                  </div>
+                  <div class="card-body" style="padding-top:0;overflow-x:auto">
+                    ${
+                      sortedLogs.length === 0
+                        ? '<div class="empty-state"><span class="material-symbols-outlined">history</span><p>Aucune activité enregistrée.</p></div>'
+                        : `
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Timestamp</th>
+                          <th>Utilisateur</th>
+                          <th>Rôle</th>
+                          <th>Action</th>
+                          <th>Ressource</th>
+                          <th>Détails</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${sortedLogs
+                          .map((log) => `
+                          <tr>
+                            <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtDate(log.timestamp)} ${fmtTime(log.timestamp)}</td>
+                            <td style="font-weight:600">${log.username || "—"}</td>
+                            <td><span class="badge badge-grey">${log.role || "—"}</span></td>
+                            <td>
+                              <span class="badge ${
+                                log.action_type === "create" ? "badge-green" :
+                                log.action_type === "update" ? "badge-blue" :
+                                log.action_type === "delete" ? "badge-red" :
+                                log.action_type === "read" ? "badge-grey" :
+                                "badge-grey"
+                              }" style="text-transform:capitalize">${log.action_type || "—"}</span>
+                            </td>
+                            <td style="font-size:12px;color:var(--text-m)">${log.resource_type || "—"}</td>
+                            <td style="font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${log.details || ""}">${log.details || "—"}</td>
+                          </tr>
+                        `)
+                          .join("")}
+                      </tbody>
+                    </table>`
+                    }
+                  </div>
+                </div>`;
+      }
+
       // ── ADMINISTRATION ───────────────────────────────────────────────────────
       function renderAdmin() {
+        // Chef de Service ne voit que l'onglet Stagiaires
+        const tabs = [
+          { id: 'interns', label: '👥 Stagiaires', visible: true }
+        ];
+        if (isDFRI()) {
+          tabs.push(
+            { id: 'depts', label: '🏥 Départements', visible: true },
+            { id: 'accounts', label: '🔑 Comptes Admin', visible: true },
+            { id: 'pwd', label: '🔒 Mot de passe', visible: true }
+          );
+        }
+        const tabsHTML = tabs.map(t => `<button class="tab ${t.id === 'interns' ? 'active' : ''}" id="tab-${t.id}" onclick="showAdminTab('${t.id}')">${t.label}</button>`).join('');
         document.getElementById("view-container").innerHTML = `
                 <div class="tabs">
-                  <button class="tab active" id="tab-interns"    onclick="showAdminTab('interns')">👥 Stagiaires</button>
-                  <button class="tab"        id="tab-depts"      onclick="showAdminTab('depts')">🏥 Départements</button>
-                  <button class="tab"        id="tab-accounts"   onclick="showAdminTab('accounts')">🔑 Comptes Admin</button>
-                  <button class="tab"        id="tab-pwd"        onclick="showAdminTab('pwd')">🔒 Mot de passe</button>
+                  ${tabsHTML}
                 </div>
                 <div id="admin-content"></div>`;
         showAdminTab("interns");
@@ -1543,8 +1832,13 @@
 
       // ── INTERNS TAB (with inline edit + badge buttons) ────────────────────────
       function renderAdminInterns() {
-        const interns = DATA.interns || [];
-        const depts = DATA.departments || [];
+        let interns = DATA.interns || [];
+        let depts = DATA.departments || [];
+        // Chef de Service: voir seulement ses stagiaires
+        if (isChefService()) {
+          interns = interns.filter((i) => i.department_id === AUTH.department_id);
+          depts = depts.filter((d) => d.id === AUTH.department_id);
+        }
         document.getElementById("admin-content").innerHTML = `
                 <div class="grid2" style="align-items:start">
                   <div class="card">
@@ -1631,7 +1925,7 @@
                       <div class="form-group"><label class="form-label">Nom</label><input class="form-control" id="inp-ln" placeholder="Nom de famille"/></div>
                       <div class="form-group"><label class="form-label">Service</label>
                         <select class="form-control" id="inp-dept">
-                          ${depts.length === 0 ? '<option value="" disabled>— Aucun département disponible —</option>' : depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}
+                          ${isChefService() ? `<option value="${AUTH.department_id}">${depts.length > 0 ? depts[0].name : 'Mon Service'}</option>` : (depts.length === 0 ? '<option value="" disabled>— Aucun département disponible —</option>' : depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join(""))}
                         </select>
                       </div>
                       <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="addIntern()" ${depts.length === 0 ? "disabled" : ""}>
@@ -1663,10 +1957,14 @@
           document.getElementById(`intern-${f}-input-${id}`).style.display =
             "block";
         });
+        // Chef de Service ne peut pas changer le département
         document.getElementById(`intern-dept-label-${id}`).style.display =
           "none";
-        document.getElementById(`intern-dept-select-${id}`).style.display =
-          "block";
+        const deptSelect = document.getElementById(`intern-dept-select-${id}`);
+        deptSelect.style.display = "block";
+        if (isChefService()) {
+          deptSelect.disabled = true;
+        }
         document.getElementById(`intern-edit-btn-${id}`).style.display = "none";
         document.getElementById(`intern-save-btn-${id}`).style.display =
           "inline-flex";

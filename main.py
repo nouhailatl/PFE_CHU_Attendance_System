@@ -42,7 +42,10 @@ All comparisons use Morocco local time (UTC+1, fixed offset).
 """
 from dotenv import load_dotenv
 load_dotenv()
-from fastapi import FastAPI, Depends, HTTPException, Request
+
+# Merged Upstream (Request) and Stashed (status) changes here
+from fastapi import FastAPI, Depends, HTTPException, Request, status
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -622,7 +625,7 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
         }
 
        
-        export_in_background()   # ← la nouvell ligne
+        export_in_background()   # ← la nouvelle ligne
     
         return {
             "event":           "check_in",
@@ -775,7 +778,7 @@ def _mark_absences_logic(db: Session) -> dict:
     return _mark_absences_for_date(now_local().date(), db)
 
 @app.post("/admin/mark-absences", tags=["Administration"])
-def mark_absences(db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
+def mark_absences(db: Session = Depends(get_db), admin: Admin = Depends(require_super_admin)):
     return _mark_absences_logic(db)
 
 @app.delete("/admin/undo-absences", tags=["Administration"])
@@ -952,6 +955,21 @@ def add_new_intern(
     db: Session = Depends(get_db),
     admin: Admin = Depends(get_current_admin)
 ):
+    # Only DFRI and Chef de Service can add interns
+    if admin.role not in (AdminRole.DFRI.value, AdminRole.CHEF_SERVICE.value):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seuls DFRI et Chef de Service peuvent ajouter des stagiaires"
+        )
+    
+    # Chef de Service can only add interns in their own department
+    if admin.role == AdminRole.CHEF_SERVICE.value:
+        if intern_data.department_id != admin.department_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Chef de Service ne peut ajouter des stagiaires que dans son département"
+            )
+    
     new_uuid = str(uuid.uuid4())
     new_intern = Intern(
         id=new_uuid,
@@ -983,11 +1001,27 @@ def list_departments(db: Session = Depends(get_db)):
 def delete_intern(
     intern_id: str,
     db: Session = Depends(get_db),
-    admin: Admin = Depends(require_super_admin)
+    admin: Admin = Depends(get_current_admin)
 ):
+    # Only DFRI and Chef de Service can delete interns
+    if admin.role not in (AdminRole.DFRI.value, AdminRole.CHEF_SERVICE.value):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seuls DFRI et Chef de Service peuvent supprimer des stagiaires"
+        )
+    
     intern = db.query(Intern).filter(Intern.id == intern_id).first()
     if not intern:
         raise HTTPException(status_code=404, detail="Stagiaire non trouvé")
+    
+    # Chef de Service can only delete interns in their own department
+    if admin.role == AdminRole.CHEF_SERVICE.value:
+        if intern.department_id != admin.department_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Chef de Service ne peut supprimer que les stagiaires de son département"
+            )
+    
     db.delete(intern)
     db.commit()
     return {"message": f"Stagiaire {intern.first_name} supprimé"}
@@ -1004,12 +1038,34 @@ def update_intern(
     intern_id: str,
     payload: InternUpdate,
     db: Session = Depends(get_db),
-    admin: Admin = Depends(require_super_admin),
+    admin: Admin = Depends(get_current_admin),
 ):
     """Update an intern's name and/or department."""
+    # Only DFRI and Chef de Service can update interns
+    if admin.role not in (AdminRole.DFRI.value, AdminRole.CHEF_SERVICE.value):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seuls DFRI et Chef de Service peuvent modifier des stagiaires"
+        )
+    
     intern = db.query(Intern).filter(Intern.id == intern_id).first()
     if not intern:
         raise HTTPException(status_code=404, detail="Stagiaire non trouvé")
+    
+    # Chef de Service can only edit interns in their own department
+    if admin.role == AdminRole.CHEF_SERVICE.value:
+        if intern.department_id != admin.department_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Chef de Service ne peut modifier que les stagiaires de son département"
+            )
+        # Chef cannot change the department
+        if payload.department_id is not None and payload.department_id != admin.department_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Chef de Service ne peut pas changer le département d'un stagiaire"
+            )
+    
     if payload.first_name is not None:
         intern.first_name = payload.first_name.strip()
     if payload.last_name is not None:
