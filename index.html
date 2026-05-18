@@ -403,12 +403,22 @@
             align: "center",
           });
 
+          const serviceText =
+            "SERVICE : " +
+            (dernierStagiaire.service || serviceName).toUpperCase();
           doc.setFontSize(10);
           doc.setFont("helvetica", "normal");
           doc.setTextColor(100, 100, 100);
-          doc.text("SERVICE : " + dernierStagiaire.service, 42.5, 53, {
-            align: "center",
-          });
+
+          // Split into 2 lines if too wide (max ~77mm usable width)
+          const maxW = 77;
+          const lines = doc.splitTextToSize(serviceText, maxW);
+          if (lines.length === 1) {
+            doc.text(lines[0], 42.5, 53, { align: "center" });
+          } else {
+            doc.text(lines[0], 42.5, 50, { align: "center" });
+            doc.text(lines[1], 42.5, 55, { align: "center" });
+          }
 
           // QR Code Frame
           doc.setDrawColor(200, 200, 200);

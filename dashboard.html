@@ -9,1311 +9,13 @@
       rel="stylesheet"
     />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-      :root {
-        --bg: #0a0d12;
-        --surface: #12171f;
-        --surface2: #1a2130;
-        --surface3: #19211e;
-        --border: #1f2d3d;
-        --border2: #3b4a44;
-        --primary: #45f1c3;
-        --primary-d: rgba(69, 241, 195, 0.1);
-        --primary-g: rgba(69, 241, 195, 0.25);
-        --error: #ffb4ab;
-        --error-d: rgba(255, 180, 171, 0.1);
-        --warn: #ffcea6;
-        --warn-d: rgba(255, 206, 166, 0.1);
-        --text: #dce4df;
-        --text-m: #bacac2;
-        --text-f: #85948d;
-        --on-primary: #00382a;
-        --radius: 10px;
-        --radius-lg: 16px;
-        --sidebar-w: 260px;
-      }
-      *,
-      ::before,
-      ::after {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      html {
-        font-size: 16px;
-      }
-      body {
-        background: var(--bg);
-        background-image: radial-gradient(
-          rgba(0, 212, 168, 0.025) 1px,
-          transparent 0
-        );
-        background-size: 24px 24px;
-        color: var(--text);
-        font-family: "DM Sans", sans-serif;
-        overflow-x: hidden;
-        min-height: 100vh;
-      }
-
-      /* ── SCROLLBAR ── */
-      ::-webkit-scrollbar {
-        width: 5px;
-        height: 5px;
-      }
-      ::-webkit-scrollbar-track {
-        background: var(--bg);
-      }
-      ::-webkit-scrollbar-thumb {
-        background: var(--border);
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: var(--primary);
-      }
-
-      /* ── MATERIAL ICONS ── */
-      .material-symbols-outlined {
-        font-family: "Material Symbols Outlined";
-        font-variation-settings:
-          "FILL" 0,
-          "wght" 300,
-          "GRAD" 0,
-          "opsz" 24;
-        font-size: 22px;
-        line-height: 1;
-        display: inline-block;
-        vertical-align: middle;
-      }
-
-      /* ═══════════════════════════════════════
-       LOGIN OVERLAY
-    ═══════════════════════════════════════ */
-      #login-overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 200;
-        display: flex;
-        flex-direction: row;
-        background: var(--bg);
-      }
-      #login-overlay.hidden {
-        display: none !important;
-      }
-
-      .login-left {
-        flex: 1;
-        background: var(--surface);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: clamp(28px, 5vw, 48px) clamp(28px, 5vw, 56px);
-        position: relative;
-        overflow: hidden;
-      }
-      .login-left::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        opacity: 0.055;
-        background-image:
-          linear-gradient(rgba(69, 241, 195, 0.5) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(69, 241, 195, 0.5) 1px, transparent 1px);
-        background-size: 40px 40px;
-        pointer-events: none;
-      }
-      .login-left::after {
-        content: "";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: min(120%, 720px);
-        height: min(85%, 520px);
-        background: radial-gradient(
-          ellipse at 50% 42%,
-          rgba(69, 241, 195, 0.07) 0%,
-          transparent 58%
-        );
-        pointer-events: none;
-        z-index: 0;
-      }
-      .login-branding {
-        position: relative;
-        z-index: 1;
-        width: 100%;
-        max-width: 420px;
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 1.25rem;
-      }
-      .login-brand-eyebrow {
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        font-weight: 500;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: rgba(101, 220, 200, 0.78);
-        margin: 0;
-        line-height: 1.4;
-      }
-      .login-logo-well {
-        position: relative;
-        width: 100%;
-        max-width: 400px;
-        padding: clamp(18px, 3.5vw, 26px) clamp(20px, 4vw, 28px);
-        border-radius: var(--radius-lg);
-        background:
-          radial-gradient(
-            ellipse 95% 80% at 50% 35%,
-            rgba(69, 241, 195, 0.11) 0%,
-            transparent 52%
-          ),
-          linear-gradient(
-            165deg,
-            rgba(22, 28, 38, 0.92) 0%,
-            rgba(10, 14, 22, 0.97) 100%
-          );
-        border: 1px solid rgba(69, 241, 195, 0.22);
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.05),
-          0 1px 0 rgba(0, 0, 0, 0.35),
-          0 20px 48px rgba(0, 0, 0, 0.35);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .login-brand-logo-img {
-        position: relative;
-        z-index: 1;
-        display: block;
-        width: 100%;
-        max-width: min(372px, 100%);
-        height: auto;
-        max-height: 216px;
-        object-fit: contain;
-        filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45))
-          drop-shadow(0 0 24px rgba(69, 241, 195, 0.08));
-      }
-      .login-brand-copy {
-        display: flex;
-        flex-direction: column;
-        gap: 0.65rem;
-        padding-top: 0.125rem;
-      }
-      .login-branding h1 {
-        font-family: "Syne", sans-serif;
-        font-size: clamp(1.875rem, 4vw, 2.25rem);
-        font-weight: 800;
-        color: #f4f9f7;
-        line-height: 1.14;
-        letter-spacing: -0.02em;
-        margin: 0;
-      }
-      .login-branding h1 em {
-        font-style: normal;
-        color: var(--primary);
-      }
-      .login-branding p {
-        margin: 0;
-        padding-top: 0.35rem;
-        color: rgba(186, 202, 194, 0.95);
-        font-size: 15px;
-        line-height: 1.65;
-      }
-      .login-branding .badge-live {
-        align-self: flex-start;
-      }
-      .badge-live {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: rgba(69, 241, 195, 0.08);
-        border: 1px solid rgba(69, 241, 195, 0.28);
-        border-radius: 100px;
-        padding: 6px 16px;
-      }
-      .badge-live .dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background: var(--primary);
-        animation: blink 2s ease-in-out infinite;
-      }
-      .badge-live span {
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        color: var(--primary);
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-      }
-      @keyframes blink {
-        0%,
-        100% {
-          opacity: 1;
-          transform: scale(1);
-        }
-        50% {
-          opacity: 0.4;
-          transform: scale(0.8);
-        }
-      }
-
-      .login-wave {
-        position: absolute;
-        right: -1px;
-        top: 0;
-        height: 100%;
-        width: 100px;
-        fill: var(--surface3);
-      }
-
-      .login-right {
-        flex: 1;
-        background: var(--surface3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 40px;
-      }
-      .login-form-wrap {
-        width: 100%;
-        max-width: 420px;
-      }
-      .login-form-wrap h2 {
-        font-family: "Syne", sans-serif;
-        font-size: 26px;
-        font-weight: 700;
-        color: #fff;
-        margin-bottom: 6px;
-      }
-      .login-form-wrap p {
-        color: var(--text-m);
-        font-size: 14px;
-        margin-bottom: 32px;
-      }
-
-      .field {
-        margin-bottom: 20px;
-      }
-      .field label {
-        display: block;
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: var(--text-m);
-        margin-bottom: 8px;
-      }
-      .input-wrap {
-        position: relative;
-      }
-      .input-wrap .icon {
-        position: absolute;
-        left: 14px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--text-f);
-        font-size: 18px;
-      }
-      .input-wrap input {
-        width: 100%;
-        background: var(--bg);
-        border: 1px solid var(--border2);
-        border-radius: var(--radius);
-        padding: 13px 14px 13px 44px;
-        color: var(--text);
-        font-size: 14px;
-        font-family: "DM Sans", sans-serif;
-        transition:
-          border-color 0.2s,
-          box-shadow 0.2s;
-        outline: none;
-      }
-      .input-wrap input:focus {
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(69, 241, 195, 0.12);
-      }
-      .input-wrap input::placeholder {
-        color: var(--text-f);
-        opacity: 0.7;
-      }
-
-      .btn-login {
-        width: 100%;
-        background: var(--primary);
-        color: var(--on-primary);
-        border: none;
-        border-radius: var(--radius);
-        padding: 14px 24px;
-        font-family: "DM Sans", sans-serif;
-        font-size: 15px;
-        font-weight: 700;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        transition:
-          filter 0.2s,
-          transform 0.1s;
-        margin-top: 28px;
-      }
-      .btn-login:hover {
-        filter: brightness(1.1);
-      }
-      .btn-login:active {
-        transform: scale(0.98);
-      }
-      .btn-login:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-
-      .login-error {
-        background: var(--error-d);
-        border: 1px solid var(--error);
-        border-radius: var(--radius);
-        padding: 10px 14px;
-        color: var(--error);
-        font-size: 13px;
-        margin-bottom: 16px;
-        display: none;
-      }
-      .login-error.visible {
-        display: block;
-      }
-
-      .login-footer {
-        margin-top: 40px;
-        padding-top: 28px;
-        border-top: 1px solid var(--border2);
-        text-align: center;
-      }
-      .login-footer p {
-        color: var(--text-f);
-        font-size: 12px;
-      }
-
-      /* ═══════════════════════════════════════
-       APP LAYOUT
-    ═══════════════════════════════════════ */
-      #app {
-        display: none;
-      }
-      #app.visible {
-        display: block;
-      }
-
-      /* ── SIDEBAR ── */
-      #sidebar {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: var(--sidebar-w);
-        background: var(--bg);
-        border-right: 1px solid var(--border);
-        display: flex;
-        flex-direction: column;
-        padding: 24px 12px;
-        z-index: 50;
-        overflow: hidden;
-      }
-      .sidebar-logo {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 0 8px;
-        margin-bottom: 28px;
-      }
-      .sidebar-logo-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 10px;
-        background: var(--primary-d);
-        border: 1px solid var(--primary-g);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-      }
-      .sidebar-logo-icon svg,
-      .sidebar-logo-icon img {
-        width: 22px;
-        height: 22px;
-        object-fit: contain;
-      }
-      .sidebar-logo-text {
-        font-family: "Syne", sans-serif;
-        font-size: 15px;
-        font-weight: 700;
-        color: #fff;
-      }
-      .sidebar-logo-text span {
-        display: block;
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        color: var(--primary);
-        letter-spacing: 0.1em;
-        font-weight: 500;
-        margin-top: 1px;
-      }
-
-      /* SIDEBAR FOOTER */
-      .sidebar-footer {
-        margin-top: auto;
-        padding-top: 16px;
-        border-top: 1px solid var(--border);
-        text-align: center;
-      }
-      .sidebar-footer p {
-        color: var(--text-f);
-        font-size: 10px;
-        line-height: 1.4;
-      }
-
-      .sidebar-section-label {
-        font-family: "DM Mono", monospace;
-        font-size: 9px;
-        text-transform: uppercase;
-        letter-spacing: 0.15em;
-        color: var(--text-f);
-        padding: 0 10px;
-        margin: 16px 0 6px;
-      }
-
-      .nav-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 10px;
-        border-radius: var(--radius);
-        border: none;
-        background: transparent;
-        color: var(--text-m);
-        width: 100%;
-        font-family: "DM Sans", sans-serif;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-        text-align: left;
-        position: relative;
-        border-right: 2px solid transparent;
-      }
-      .nav-item:hover {
-        background: rgba(255, 255, 255, 0.04);
-        color: var(--text);
-      }
-      .nav-item.active {
-        background: var(--primary-d);
-        color: var(--primary);
-        border-right-color: var(--primary);
-      }
-      .nav-item .material-symbols-outlined {
-        font-size: 20px;
-      }
-      .nav-item .badge-count {
-        margin-left: auto;
-        background: var(--error);
-        color: #000;
-        font-family: "DM Mono", monospace;
-        font-size: 9px;
-        font-weight: 700;
-        padding: 2px 6px;
-        border-radius: 100px;
-        min-width: 18px;
-        text-align: center;
-      }
-
-      .sidebar-divider {
-        height: 1px;
-        background: var(--border);
-        margin: 12px 0;
-      }
-
-      .user-card {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px;
-        border-radius: var(--radius);
-        background: var(--surface2);
-        border: 1px solid var(--border);
-        margin-bottom: 12px;
-      }
-      .user-avatar {
-        width: 34px;
-        height: 34px;
-        border-radius: 8px;
-        background: var(--primary-d);
-        border: 1px solid var(--primary-g);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: "Syne", sans-serif;
-        font-size: 13px;
-        font-weight: 700;
-        color: var(--primary);
-        flex-shrink: 0;
-      }
-      .user-info {
-        flex: 1;
-        min-width: 0;
-      }
-      .user-info strong {
-        display: block;
-        font-size: 13px;
-        color: #fff;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .user-info span {
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        color: var(--primary);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-      .btn-logout {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px;
-        border-radius: var(--radius);
-        border: none;
-        background: transparent;
-        color: var(--text-f);
-        font-family: "DM Sans", sans-serif;
-        font-size: 14px;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-      .btn-logout:hover {
-        background: var(--error-d);
-        color: var(--error);
-      }
-
-      /* ── TOPBAR ── */
-      #topbar {
-        position: sticky;
-        top: 0;
-        left: var(--sidebar-w);
-        margin-left: var(--sidebar-w);
-        height: 64px;
-        z-index: 40;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0 32px;
-        background: rgba(10, 13, 18, 0.85);
-        backdrop-filter: blur(12px);
-        border-bottom: 1px solid var(--border);
-      }
-      .topbar-title {
-        font-family: "Syne", sans-serif;
-        font-size: 18px;
-        font-weight: 700;
-        color: #fff;
-      }
-      .topbar-right {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-      }
-      .topbar-badge {
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        background: var(--primary-d);
-        border: 1px solid var(--primary-g);
-        border-radius: 100px;
-        padding: 5px 12px;
-      }
-      .topbar-badge .dot {
-        width: 6px;
-        height: 6px;
-        background: var(--primary);
-        border-radius: 50%;
-        animation: blink 2s ease-in-out infinite;
-      }
-      .topbar-badge span {
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        color: var(--primary);
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-      }
-      .topbar-time {
-        font-family: "DM Mono", monospace;
-        font-size: 12px;
-        color: var(--text-f);
-      }
-
-      /* ── MAIN ── */
-      #main {
-        margin-left: var(--sidebar-w);
-        padding: 28px 32px 48px;
-        min-height: 100vh;
-      }
-
-      /* ═══════════════════════════════════════
-       COMPONENTS
-    ═══════════════════════════════════════ */
-      .card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        overflow: hidden;
-      }
-      .card-header {
-        padding: 20px 24px 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-      .card-header h3 {
-        font-family: "Syne", sans-serif;
-        font-size: 16px;
-        font-weight: 700;
-        color: #fff;
-      }
-      .card-header p {
-        font-size: 12px;
-        color: var(--text-f);
-        margin-top: 2px;
-      }
-      .card-body {
-        padding: 20px 24px 24px;
-      }
-
-      .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
-      }
-      .kpi-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        padding: 20px 22px;
-        position: relative;
-        overflow: hidden;
-        transition: border-color 0.2s;
-      }
-      .kpi-card:hover {
-        border-color: var(--primary-g);
-      }
-      .kpi-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 14px;
-      }
-      .kpi-label {
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        color: var(--text-m);
-      }
-      .kpi-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--surface2);
-      }
-      .kpi-icon .material-symbols-outlined {
-        font-size: 18px;
-      }
-      .kpi-value {
-        font-family: "Syne", sans-serif;
-        font-size: 40px;
-        font-weight: 700;
-        line-height: 1;
-        color: #fff;
-        margin-bottom: 6px;
-      }
-      .kpi-trend {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        font-family: "DM Mono", monospace;
-        font-size: 11px;
-      }
-      .kpi-trend.up {
-        color: var(--primary);
-      }
-      .kpi-trend.down {
-        color: var(--error);
-      }
-      .kpi-trend .material-symbols-outlined {
-        font-size: 14px;
-      }
-      .kpi-bg-icon {
-        position: absolute;
-        right: -10px;
-        bottom: -10px;
-        opacity: 0.04;
-        font-size: 80px;
-        line-height: 1;
-      }
-
-      .grid2 {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-      }
-      .grid3 {
-        display: grid;
-        grid-template-columns: 2fr 1fr;
-        gap: 16px;
-      }
-      .col-span2 {
-        grid-column: span 2;
-      }
-      .col-span-full {
-        grid-column: 1/-1;
-      }
-
-      /* TABLE */
-      .data-table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      .data-table thead th {
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: var(--text-f);
-        padding: 0 0 12px;
-        border-bottom: 1px solid var(--border);
-        font-weight: 500;
-        text-align: left;
-      }
-      .data-table tbody tr {
-        border-bottom: 1px solid rgba(31, 45, 61, 0.5);
-        transition: background 0.15s;
-      }
-      .data-table tbody tr:last-child {
-        border-bottom: none;
-      }
-      .data-table tbody tr:hover {
-        background: rgba(255, 255, 255, 0.025);
-      }
-      .data-table tbody td {
-        padding: 11px 0;
-        font-size: 13px;
-        vertical-align: middle;
-      }
-
-      /* BADGE */
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 2px 9px;
-        border-radius: 100px;
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-      .badge-green {
-        background: rgba(69, 241, 195, 0.12);
-        color: var(--primary);
-        border: 1px solid rgba(69, 241, 195, 0.25);
-      }
-      .badge-orange {
-        background: rgba(255, 206, 166, 0.12);
-        color: var(--warn);
-        border: 1px solid rgba(255, 206, 166, 0.25);
-      }
-      .badge-red {
-        background: rgba(255, 180, 171, 0.12);
-        color: var(--error);
-        border: 1px solid rgba(255, 180, 171, 0.25);
-      }
-      .badge-grey {
-        background: rgba(255, 255, 255, 0.07);
-        color: var(--text-m);
-        border: 1px solid var(--border);
-      }
-
-      /* LOADING SPINNER */
-      .spinner {
-        width: 20px;
-        height: 20px;
-        border: 2px solid var(--border2);
-        border-top-color: var(--primary);
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
-        display: inline-block;
-        vertical-align: middle;
-      }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      /* FORM */
-      .form-group {
-        margin-bottom: 16px;
-      }
-      .form-label {
-        display: block;
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: var(--text-m);
-        margin-bottom: 7px;
-      }
-      .form-control {
-        width: 100%;
-        background: var(--surface2);
-        border: 1px solid var(--border2);
-        border-radius: var(--radius);
-        padding: 10px 14px;
-        color: var(--text);
-        font-size: 14px;
-        font-family: "DM Sans", sans-serif;
-        outline: none;
-        transition:
-          border-color 0.2s,
-          box-shadow 0.2s;
-      }
-      .form-control:focus {
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(69, 241, 195, 0.1);
-      }
-      .form-control option {
-        background: var(--surface2);
-      }
-
-      /* BUTTON */
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 9px 18px;
-        border-radius: var(--radius);
-        border: none;
-        font-family: "DM Sans", sans-serif;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-      .btn-primary {
-        background: var(--primary);
-        color: var(--on-primary);
-      }
-      .btn-primary:hover {
-        filter: brightness(1.1);
-      }
-      .btn-danger {
-        background: var(--error-d);
-        color: var(--error);
-        border: 1px solid var(--error);
-      }
-      .btn-danger:hover {
-        background: rgba(255, 180, 171, 0.2);
-      }
-      .btn-ghost {
-        background: var(--surface2);
-        color: var(--text-m);
-        border: 1px solid var(--border);
-      }
-      .btn-ghost:hover {
-        background: var(--surface3);
-        color: var(--text);
-      }
-      .btn:disabled {
-        opacity: 0.45;
-        cursor: not-allowed;
-      }
-      .btn .spinner {
-        width: 14px;
-        height: 14px;
-        border-width: 2px;
-      }
-      .btn .material-symbols-outlined {
-        font-size: 16px;
-      }
-
-      /* ALERT BOX */
-      .alert {
-        padding: 10px 14px;
-        border-radius: var(--radius);
-        font-size: 13px;
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-      .alert-success {
-        background: rgba(69, 241, 195, 0.1);
-        border: 1px solid rgba(69, 241, 195, 0.3);
-        color: var(--primary);
-      }
-      .alert-error {
-        background: var(--error-d);
-        border: 1px solid var(--error);
-        color: var(--error);
-      }
-      .alert-warn {
-        background: var(--warn-d);
-        border: 1px solid var(--warn);
-        color: var(--warn);
-      }
-
-      /* TABS */
-      .tabs {
-        display: flex;
-        gap: 4px;
-        background: var(--surface2);
-        padding: 4px;
-        border-radius: var(--radius);
-        margin-bottom: 20px;
-      }
-      .tab {
-        flex: 1;
-        padding: 8px;
-        border: none;
-        background: transparent;
-        color: var(--text-m);
-        font-family: "DM Sans", sans-serif;
-        font-size: 13px;
-        font-weight: 500;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-      .tab.active {
-        background: var(--surface);
-        color: #fff;
-      }
-
-      /* MODAL */
-      #modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(10, 13, 18, 0.85);
-        backdrop-filter: blur(8px);
-        z-index: 100;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-      }
-      #modal-overlay.open {
-        display: flex;
-      }
-      #modal-box {
-        background: var(--surface3);
-        border: 1px solid var(--border2);
-        border-radius: var(--radius-lg);
-        max-width: 480px;
-        width: 100%;
-        padding: 28px;
-        animation: slideUp 0.25s ease;
-      }
-      @keyframes slideUp {
-        from {
-          opacity: 0;
-          transform: translateY(16px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-      #modal-box h3 {
-        font-family: "Syne", sans-serif;
-        font-size: 18px;
-        font-weight: 700;
-        color: #fff;
-        margin-bottom: 6px;
-      }
-      #modal-box p {
-        color: var(--text-m);
-        font-size: 13px;
-        margin-bottom: 20px;
-      }
-
-      /* TOAST */
-      #toast-container {
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        z-index: 300;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .toast {
-        padding: 12px 18px;
-        border-radius: var(--radius);
-        font-size: 13px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-width: 260px;
-        animation: toastIn 0.3s ease;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-      }
-      @keyframes toastIn {
-        from {
-          opacity: 0;
-          transform: translateX(20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(0);
-        }
-      }
-      .toast-success {
-        background: rgba(69, 241, 195, 0.15);
-        border: 1px solid rgba(69, 241, 195, 0.3);
-        color: var(--primary);
-      }
-      .toast-error {
-        background: rgba(255, 180, 171, 0.15);
-        border: 1px solid var(--error);
-        color: var(--error);
-      }
-      .toast .material-symbols-outlined {
-        font-size: 16px;
-      }
-
-      /* INDIVIDUAL VIEW */
-      .profile-header {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 20px;
-      }
-      .profile-avatar {
-        width: 56px;
-        height: 56px;
-        border-radius: 14px;
-        background: var(--primary-d);
-        border: 2px solid var(--primary-g);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: "Syne", sans-serif;
-        font-size: 20px;
-        font-weight: 800;
-        color: var(--primary);
-        flex-shrink: 0;
-      }
-
-      /* DEPT CARD */
-      .dept-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        padding: 20px;
-        transition: border-color 0.2s;
-      }
-      .dept-card:hover {
-        border-color: var(--primary-g);
-      }
-      .dept-bar-track {
-        height: 4px;
-        background: var(--surface2);
-        border-radius: 2px;
-        overflow: hidden;
-        margin: 10px 0;
-      }
-      .dept-bar-fill {
-        height: 100%;
-        background: var(--primary);
-        border-radius: 2px;
-        transition: width 1s ease;
-      }
-
-      /* RISK GAUGE */
-      .risk-gauge {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-      .risk-gauge svg {
-        width: 160px;
-        height: 85px;
-      }
-      .risk-label {
-        font-family: "DM Mono", monospace;
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: var(--text-f);
-        margin-top: 4px;
-      }
-
-      /* CLUSTER SEGMENTS */
-      .cluster-segment {
-        padding: 14px;
-        background: var(--surface2);
-        border-radius: var(--radius);
-        border: 1px solid var(--border);
-        margin-bottom: 12px;
-      }
-      .cluster-segment h4 {
-        font-size: 13px;
-        font-weight: 600;
-        color: #fff;
-        margin-bottom: 4px;
-      }
-      .cluster-segment p {
-        font-size: 11px;
-        color: var(--text-m);
-        margin-bottom: 10px;
-      }
-      .cluster-bar {
-        height: 3px;
-        background: var(--border);
-        border-radius: 2px;
-        overflow: hidden;
-      }
-      .cluster-bar div {
-        height: 100%;
-        border-radius: 2px;
-      }
-
-      /* CHART CONTAINER */
-      .chart-wrap {
-        position: relative;
-      }
-
-      /* EMPTY STATE */
-      .empty-state {
-        text-align: center;
-        padding: 40px 20px;
-        color: var(--text-f);
-      }
-      .empty-state .material-symbols-outlined {
-        font-size: 40px;
-        margin-bottom: 12px;
-        display: block;
-        opacity: 0.4;
-      }
-      .empty-state p {
-        font-size: 14px;
-      }
-
-      /* INTENSITY GRID */
-      .intensity-grid {
-        display: grid;
-        grid-template-columns: repeat(12, 1fr);
-        gap: 3px;
-      }
-      .i-cell {
-        aspect-ratio: 1;
-        border-radius: 2px;
-        transition: opacity 0.2s;
-        cursor: default;
-      }
-      .i-cell:hover {
-        outline: 1px solid rgba(255, 255, 255, 0.3);
-      }
-
-      /* ADMIN SECTIONS */
-      .admin-section-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 16px;
-      }
-      .admin-section-header h3 {
-        font-family: "Syne", sans-serif;
-        font-size: 16px;
-        font-weight: 700;
-        color: #fff;
-      }
-
-      /* TOGGLE */
-      .toggle-group {
-        display: flex;
-        gap: 8px;
-      }
-      .toggle-btn {
-        padding: 6px 14px;
-        border-radius: var(--radius);
-        border: 1px solid var(--border);
-        background: transparent;
-        color: var(--text-m);
-        font-size: 12px;
-        font-family: "DM Mono", monospace;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-      .toggle-btn.active {
-        background: var(--primary-d);
-        color: var(--primary);
-        border-color: var(--primary-g);
-      }
-
-      /* SELECT */
-      select.form-control {
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2385948d' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-        background-repeat: no-repeat;
-        background-position: right 10px center;
-        background-size: 16px;
-        padding-right: 36px;
-      }
-
-      /* ── TRANSITIONS ── */
-      #view-container {
-        transition: opacity 0.25s ease;
-      }
-      #view-container.fading {
-        opacity: 0;
-      }
-
-      /* ── RESPONSIVE ── */
-      @media (max-width: 900px) {
-        #sidebar {
-          transform: translateX(-100%);
-        }
-        #topbar,
-        #main {
-          margin-left: 0;
-        }
-      }
-      @media (max-width: 600px) {
-        .login-left {
-          display: none;
-        }
-        .kpi-grid {
-          grid-template-columns: 1fr 1fr;
-        }
-        .grid2,
-        .grid3 {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
+    <!-- Badge generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <!-- ══════════════════════════════════
-     LOGIN OVERLAY
-══════════════════════════════════ -->
+    <!-- LOGIN -->
     <div id="login-overlay">
       <div class="login-left">
         <div class="login-branding">
@@ -1357,9 +59,7 @@
         <div class="login-form-wrap">
           <h2>Accès Sécurisé</h2>
           <p>Entrez vos identifiants pour accéder au tableau de bord.</p>
-
           <div id="login-error" class="login-error"></div>
-
           <div class="field">
             <label>Identifiant</label>
             <div class="input-wrap">
@@ -1384,39 +84,29 @@
               />
             </div>
           </div>
-
           <button class="btn-login" id="btn-login" onclick="doLogin()">
             <span>Se Connecter</span>
             <span class="material-symbols-outlined" style="font-size: 18px"
               >arrow_forward</span
             >
           </button>
-
-          <div class="login-footer">
-            <p>© 2026 GST-TTA · DFRI</p>
-          </div>
+          <div class="login-footer"><p>© 2026 DFRI · GST-TTA</p></div>
         </div>
       </div>
     </div>
 
-    <!-- ══════════════════════════════════
-     APP
-══════════════════════════════════ -->
+    <!-- APP -->
     <div id="app">
       <!-- SIDEBAR -->
       <aside id="sidebar">
         <div class="sidebar-logo">
           <div class="sidebar-logo-icon">
-            <img
-              src="gst_logo_login.png"
-              alt="Logo — Groupe sanitaire territorial TTA"
-            />
+            <img src="gst_logo_login.png" alt="Logo" />
           </div>
           <div class="sidebar-logo-text">
             GST-TTA Analytics <span>Plateforme de gestion des stagiaires</span>
           </div>
         </div>
-
         <div id="user-card" class="user-card">
           <div class="user-avatar" id="user-avatar">A</div>
           <div class="user-info">
@@ -1424,18 +114,14 @@
             <span id="user-role">Super Admin</span>
           </div>
         </div>
-
         <div class="sidebar-section-label">Navigation</div>
         <nav id="nav-links"></nav>
-
         <div style="margin-top: auto">
           <div class="sidebar-divider"></div>
           <button class="btn-logout" onclick="doLogout()">
             <span class="material-symbols-outlined">logout</span> Déconnexion
           </button>
-          <div class="sidebar-footer">
-            <p>© 2026 GST-TTA · DFRI</p>
-          </div>
+          <div class="sidebar-footer"><p>© 2026 DFRI · GST-TTA</p></div>
         </div>
       </aside>
 
@@ -1443,10 +129,65 @@
       <header id="topbar">
         <div class="topbar-title" id="topbar-title">Vue Globale</div>
         <div class="topbar-right">
+          <!-- Last refresh indicator -->
+          <div
+            class="topbar-refresh-time"
+            id="refresh-indicator"
+            title="Dernière actualisation des données"
+          >
+            Actualisé <span id="last-refresh-time">—</span>
+          </div>
+
+          <!-- Refresh button -->
+          <button
+            class="btn-refresh"
+            id="btn-refresh"
+            onclick="refreshData()"
+            title="Actualiser les données"
+          >
+            <span class="material-symbols-outlined">refresh</span>
+          </button>
+
+          <!-- Alert bell -->
+          <button
+            class="topbar-alert-bell"
+            onclick="switchView('alerts')"
+            title="Journal des alertes"
+            id="topbar-bell"
+          >
+            <span class="material-symbols-outlined">notifications</span>
+            <div class="alert-count hidden" id="topbar-alert-count">0</div>
+          </button>
+
+          <!-- Excel export -->
+          <button
+            class="btn-excel"
+            onclick="exportExcel()"
+            id="btn-excel-export"
+            title="Exporter les données en Excel"
+          >
+            <span class="material-symbols-outlined">table_view</span>
+            <span>Exporter Excel</span>
+          </button>
+
+          <!-- Live badge -->
           <div class="topbar-badge">
             <div class="dot"></div>
             <span>Live</span>
           </div>
+
+          <!-- Fullscreen -->
+          <button
+            class="btn-fullscreen"
+            onclick="toggleFullscreen()"
+            id="btn-fullscreen"
+            title="Plein écran"
+          >
+            <span class="material-symbols-outlined" id="fullscreen-icon"
+              >fullscreen</span
+            >
+          </button>
+
           <div class="topbar-time" id="topbar-time"></div>
         </div>
       </header>
@@ -1478,21 +219,21 @@
     <!-- TOAST -->
     <div id="toast-container"></div>
 
-    <!-- ══════════════════════════════════
-     SCRIPTS
-══════════════════════════════════ -->
+    <!-- Hidden QR render target for badge PDF generation -->
+    <div id="qr-hidden"></div>
+
     <script>
-      // ── CONFIG ────────────────────────────────────────────────────────────────────
+      // ── CONFIG ──────────────────────────────────────────────────────────────
       const API = "http://127.0.0.1:8000";
 
-      // ── STATE ─────────────────────────────────────────────────────────────────────
-      let AUTH = null; // { access_token, role, department_id, username }
+      // ── STATE ───────────────────────────────────────────────────────────────
+      let AUTH = null;
       let CURRENT_VIEW = "global";
-      let DATA = {}; // cached API data
-      let CHARTS = {}; // active Chart.js instances
+      let DATA = {};
+      let CHARTS = {};
       let SELECTED_INTERN = null;
 
-      // ── NAVIGATION ITEMS (filtered by role later) ─────────────────────────────────
+      // ── NAV ─────────────────────────────────────────────────────────────────
       const NAV_ALL = [
         { id: "global", label: "Vue Globale", icon: "dashboard" },
         { id: "individual", label: "Vue Individuelle", icon: "person_search" },
@@ -1521,24 +262,19 @@
         },
       ];
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // AUTH
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── AUTH ─────────────────────────────────────────────────────────────────
       async function doLogin() {
         const username = document.getElementById("inp-username").value.trim();
         const password = document.getElementById("inp-password").value;
         const errDiv = document.getElementById("login-error");
         const btn = document.getElementById("btn-login");
-
         if (!username || !password) {
           showLoginError("Veuillez remplir tous les champs.");
           return;
         }
-
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner"></span> Connexion…';
         errDiv.classList.remove("visible");
-
         try {
           const res = await fetch(`${API}/auth/login`, {
             method: "POST",
@@ -1548,7 +284,6 @@
           const data = await res.json();
           if (!res.ok)
             throw new Error(data.detail || "Identifiants incorrects");
-
           AUTH = {
             access_token: data.access_token,
             role: data.role,
@@ -1556,7 +291,6 @@
             username,
           };
           sessionStorage.setItem("chu_auth", JSON.stringify(AUTH));
-
           document.getElementById("login-overlay").classList.add("hidden");
           document.getElementById("app").classList.add("visible");
           initApp();
@@ -1568,13 +302,11 @@
             '<span>Se Connecter</span><span class="material-symbols-outlined" style="font-size:18px">arrow_forward</span>';
         }
       }
-
       function showLoginError(msg) {
         const el = document.getElementById("login-error");
         el.textContent = "⚠ " + msg;
         el.classList.add("visible");
       }
-
       function doLogout() {
         AUTH = null;
         DATA = {};
@@ -1588,19 +320,15 @@
             history.pushState(null, '', window.location.href);
         });
       }
-
       function authHeaders() {
         return {
           Authorization: `Bearer ${AUTH.access_token}`,
           "Content-Type": "application/json",
         };
       }
-
       function isSuperAdmin() {
         return AUTH && AUTH.role === "super_admin";
       }
-
-      // allow Enter key on login
       document.addEventListener("keydown", (e) => {
         if (
           e.key === "Enter" &&
@@ -1609,9 +337,7 @@
           doLogin();
       });
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // API HELPERS
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── API HELPERS ──────────────────────────────────────────────────────────
       async function apiFetch(path, opts = {}) {
         const res = await fetch(API + path, {
           headers: authHeaders(),
@@ -1626,7 +352,7 @@
 
       async function loadData() {
         try {
-          const [intRes, attRes, dlyRes, dptRes] = await Promise.all([
+          const [intRes, attRes, dlyRes] = await Promise.all([
             apiFetch("/interns"),
             apiFetch("/dashboard/history"),
             apiFetch("/departments"),
@@ -1634,35 +360,81 @@
           DATA.interns = await intRes.json();
           DATA.history = await attRes.json();
           DATA.departments = await dlyRes.json();
-
-          // If super_admin, also load admins list
           if (isSuperAdmin()) {
             const admRes = await apiFetch("/auth/admins");
             DATA.admins = admRes.ok ? await admRes.json() : [];
           }
+          // Update last-refresh timestamp
+          const now = new Date();
+          const timeStr = now.toLocaleTimeString("fr-FR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          const el = document.getElementById("last-refresh-time");
+          if (el) el.textContent = timeStr;
+          // Update alert bell count
+          updateAlertBell();
         } catch (e) {
           showToast("Erreur chargement données: " + e.message, "error");
         }
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // INIT APP
-      // ─────────────────────────────────────────────────────────────────────────────
+      function updateAlertBell() {
+        const alertCount = (DATA.history || []).filter(
+          (h) => h.needs_attention,
+        ).length;
+        const countEl = document.getElementById("topbar-alert-count");
+        if (!countEl) return;
+        if (alertCount > 0) {
+          countEl.textContent = alertCount > 99 ? "99+" : alertCount;
+          countEl.classList.remove("hidden");
+        } else {
+          countEl.classList.add("hidden");
+        }
+      }
+
+      async function refreshData() {
+        const btn = document.getElementById("btn-refresh");
+        btn.classList.add("spinning");
+        btn.disabled = true;
+        await loadData();
+        // Re-render current view with fresh data
+        switchView(CURRENT_VIEW);
+        btn.classList.remove("spinning");
+        btn.disabled = false;
+        showToast("Données actualisées ✅", "success");
+      }
+
+      function toggleFullscreen() {
+        const icon = document.getElementById("fullscreen-icon");
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+          if (icon) icon.textContent = "fullscreen_exit";
+        } else {
+          document.exitFullscreen().catch(() => {});
+          if (icon) icon.textContent = "fullscreen";
+        }
+      }
+      document.addEventListener("fullscreenchange", () => {
+        const icon = document.getElementById("fullscreen-icon");
+        if (icon)
+          icon.textContent = document.fullscreenElement
+            ? "fullscreen_exit"
+            : "fullscreen";
+      });
+
+      // ── INIT ─────────────────────────────────────────────────────────────────
       async function initApp() {
-        // Update user card
         document.getElementById("user-name").textContent = AUTH.username;
         document.getElementById("user-avatar").textContent =
           AUTH.username[0].toUpperCase();
         document.getElementById("user-role").textContent = isSuperAdmin()
           ? "Super Admin"
           : "Superviseur";
-
-        // Build nav
         buildNav();
-        // Clock
         updateClock();
         setInterval(updateClock, 1000);
-        // Load data then render
         await loadData();
         switchView("global");
       }
@@ -1674,15 +446,11 @@
           : NAV_ALL.filter((n) => !n.adminOnly);
         nav.innerHTML = items
           .map(
-            (n) => `
-    <button class="nav-item" id="nav-${n.id}" onclick="switchView('${n.id}')">
-      <span class="material-symbols-outlined">${n.icon}</span>${n.label}
-    </button>
-  `,
+            (n) =>
+              `<button class="nav-item" id="nav-${n.id}" onclick="switchView('${n.id}')"><span class="material-symbols-outlined">${n.icon}</span>${n.label}</button>`,
           )
           .join("");
       }
-
       function updateNav(active) {
         document
           .querySelectorAll(".nav-item")
@@ -1690,7 +458,6 @@
         const el = document.getElementById(`nav-${active}`);
         if (el) el.classList.add("active");
       }
-
       function updateClock() {
         const now = new Date();
         document.getElementById("topbar-time").textContent =
@@ -1706,12 +473,10 @@
             second: "2-digit",
           });
       }
-
       function destroyCharts() {
         Object.values(CHARTS).forEach((c) => c.destroy());
         CHARTS = {};
       }
-
       function switchView(id) {
         CURRENT_VIEW = id;
         updateNav(id);
@@ -1724,7 +489,6 @@
           admin: "Administration",
         };
         document.getElementById("topbar-title").textContent = titles[id] || id;
-
         const vc = document.getElementById("view-container");
         vc.classList.add("fading");
         destroyCharts();
@@ -1753,9 +517,7 @@
         }, 220);
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // BADGE HELPERS
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── BADGES ──────────────────────────────────────────────────────────────
       function riskBadge(label) {
         if (!label) return '<span class="badge badge-grey">—</span>';
         const map = {
@@ -1770,18 +532,14 @@
           completed: "badge-green",
           Présent: "badge-green",
           Retard: "badge-orange",
-          absent: "badge-red",
         };
-        const cls = map[label] || "badge-grey";
-        return `<span class="badge ${cls}">${label.replace("_", " ")}</span>`;
+        return `<span class="badge ${map[label] || "badge-grey"}">${label.replace("_", " ")}</span>`;
       }
-
       function statusBadge(status, need_att) {
         if (need_att)
           return `<span class="badge badge-red">⚠ ${status || "alerte"}</span>`;
         return riskBadge(status);
       }
-
       function fmtTime(iso) {
         if (!iso) return "—";
         try {
@@ -1793,7 +551,6 @@
           return "—";
         }
       }
-
       function fmtDate(iso) {
         if (!iso) return "—";
         try {
@@ -1806,19 +563,136 @@
           return "—";
         }
       }
-
       function initials(first, last) {
         return ((first || "")[0] || "") + ((last || "")[0] || "");
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // VUE GLOBALE
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── ★ BADGE PDF GENERATION ──────────────────────────────────────────────
+      function generateBadgePDF(internId, fullName, serviceName) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: [85, 120],
+        });
+
+        // Render QR code into hidden div
+        const qrDiv = document.getElementById("qr-hidden");
+        qrDiv.innerHTML = "";
+        const qr = new QRCode(qrDiv, {
+          text: internId,
+          width: 256,
+          height: 256,
+          colorDark: "#0a0d12",
+          colorLight: "#ffffff",
+        });
+
+        setTimeout(() => {
+          const qrCanvas = qrDiv.querySelector("canvas");
+          if (!qrCanvas) {
+            showToast("Erreur génération QR code", "error");
+            return;
+          }
+          const qrImage = qrCanvas.toDataURL("image/png");
+
+          // Background
+          doc.setFillColor(245, 247, 250);
+          doc.rect(0, 0, 85, 120, "F");
+
+          // Blue header band (top 25mm)
+          doc.setFillColor(30, 136, 229);
+          doc.rect(0, 0, 85, 25, "F");
+          doc.setTextColor(255, 255, 255);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(12);
+          doc.text("CENTRE HOSPITALIER", 42.5, 12, { align: "center" });
+          doc.setFontSize(8);
+          doc.text("CARTE D'ACCÈS STAGIAIRE", 42.5, 18, { align: "center" });
+
+          // Name — auto-shrink
+          const nameText = fullName.toUpperCase();
+          let fs = 16;
+          doc.setFont("helvetica", "bold");
+          while (
+            (doc.getStringUnitWidth(nameText) * fs) / doc.internal.scaleFactor >
+              77 &&
+            fs > 8
+          )
+            fs--;
+          doc.setFontSize(fs);
+          doc.setTextColor(10, 13, 18);
+          doc.text(nameText, 42.5, 45, { align: "center" });
+
+          // Service — auto-shrink if name is long
+          const serviceText = "SERVICE : " + serviceName.toUpperCase();
+          let sfSize = 10;
+          doc.setFont("helvetica", "normal");
+          while (
+            (doc.getStringUnitWidth(serviceText) * sfSize) /
+              doc.internal.scaleFactor >
+              77 &&
+            sfSize > 7
+          )
+            sfSize--;
+          doc.setFontSize(sfSize);
+          doc.setTextColor(100, 100, 100);
+          const serviceLines = doc.splitTextToSize(serviceText, 77);
+          if (serviceLines.length === 1) {
+            doc.text(serviceLines[0], 42.5, 53, { align: "center" });
+          } else {
+            doc.text(serviceLines[0], 42.5, 50, { align: "center" });
+            doc.text(serviceLines[1], 42.5, 55, { align: "center" });
+          }
+
+          // QR frame
+          doc.setDrawColor(200, 200, 200);
+          doc.rect(20, 62, 45, 45);
+          doc.addImage(qrImage, "PNG", 22.5, 64.5, 40, 40);
+
+          // UUID footer
+          doc.setFontSize(7);
+          doc.setTextColor(150, 150, 150);
+          doc.text("UUID: " + internId, 42.5, 114, { align: "center" });
+
+          doc.save(`badge_${fullName.replace(/\s+/g, "_")}.pdf`);
+          showToast(`Badge de ${fullName} téléchargé ✅`, "success");
+        }, 400);
+      }
+
+      // ── ★ EXCEL EXPORT ───────────────────────────────────────────────────────
+      async function exportExcel() {
+        const btn = document.getElementById("btn-excel-export");
+        btn.disabled = true;
+        btn.innerHTML =
+          '<span class="spinner" style="width:12px;height:12px;border-width:2px"></span><span>Export…</span>';
+        try {
+          const res = await apiFetch("/export/excel");
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `Erreur ${res.status}`);
+          }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "CHU_Pointages.xlsx";
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast("Fichier Excel téléchargé ✅", "success");
+        } catch (e) {
+          showToast("Export Excel : " + e.message, "error");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML =
+            '<span class="material-symbols-outlined">table_view</span><span>Exporter Excel</span>';
+        }
+      }
+
+      // ── VUE GLOBALE ──────────────────────────────────────────────────────────
       function renderGlobal() {
         const interns = DATA.interns || [];
         const history = DATA.history || [];
         const depts = DATA.departments || [];
-
         const today = new Date().toDateString();
         const todayRec = history.filter(
           (h) => new Date(h.date).toDateString() === today,
@@ -1827,8 +701,6 @@
           todayRec.filter((h) => h.arrival_time).map((h) => h.intern_id),
         ).size;
         const alertCount = history.filter((h) => h.needs_attention).length;
-
-        // Build scan activity per day (last 30 days)
         const dayMap = {};
         history.forEach((h) => {
           const d = fmtDate(h.date);
@@ -1839,8 +711,6 @@
         const days = Object.keys(dayMap).slice(-30);
         const scans = days.map((d) => dayMap[d].scans);
         const alerts = days.map((d) => dayMap[d].alerts);
-
-        // Risk distribution from history statuses
         let rFaible = 0,
           rMoyen = 0,
           rEleve = 0;
@@ -1857,78 +727,58 @@
         });
 
         document.getElementById("view-container").innerHTML = `
-    <div class="kpi-grid">
-      ${kpiCard("Total Stagiaires", interns.length, "group", "", "primary")}
-      ${kpiCard("Présents Aujourd'hui", presentToday, "how_to_reg", "", "primary")}
-      ${kpiCard("Services", depts.length, "corporate_fare", "", "primary")}
-      ${kpiCard("Alertes Actives", alertCount, "warning", "", "error")}
-    </div>
-
-    <div class="grid3" style="margin-bottom:16px">
-      <div class="card">
-        <div class="card-header"><div><h3>Activité des Scans (30j)</h3><p>Présences & anomalies quotidiennes</p></div></div>
-        <div class="card-body"><div class="chart-wrap" style="height:280px"><canvas id="ch-global"></canvas></div></div>
-      </div>
-      <div class="card">
-        <div class="card-header"><div><h3>Répartition Risque</h3></div></div>
-        <div class="card-body"><div class="chart-wrap" style="height:280px;display:flex;align-items:center;justify-content:center"><canvas id="ch-donut"></canvas></div></div>
-      </div>
-    </div>
-
-    <div class="grid2">
-      <div class="card">
-        <div class="card-header" style="padding-bottom:16px">
-          <div><h3>Derniers Scans</h3></div>
-        </div>
-        <div class="card-body" style="padding-top:0;overflow-x:auto">
-          <table class="data-table">
-            <thead><tr>
-              <th>Stagiaire</th><th>Arrivée</th><th>Départ</th><th>Statut</th>
-            </tr></thead>
-            <tbody>
-              ${history
-                .slice(-15)
-                .reverse()
-                .map((h) => {
-                  const intern = interns.find((i) => i.id === h.intern_id);
-                  const name = intern
-                    ? `${intern.first_name} ${intern.last_name}`
-                    : h.intern_id.substring(0, 8) + "…";
-                  return `<tr>
-                  <td><div style="display:flex;align-items:center;gap:8px">
-                    <div style="width:28px;height:28px;border-radius:8px;background:var(--primary-d);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--primary)">${name[0]}</div>
-                    <span style="font-weight:600;font-size:13px">${name}</span>
-                  </div></td>
-                  <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td>
-                  <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td>
-                  <td>${statusBadge(h.status, h.needs_attention)}</td>
-                </tr>`;
-                })
-                .join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header" style="padding-bottom:16px"><div><h3>Intensité Hebdomadaire</h3><p>Densité des scans par heure/jour</p></div></div>
-        <div class="card-body" style="padding-top:0">
-          <div class="intensity-grid">
-            ${Array.from({ length: 84 })
-              .map(() => {
-                const v = Math.random();
-                const opacity =
-                  v > 0.8 ? "1" : v > 0.5 ? ".6" : v > 0.2 ? ".25" : ".08";
-                return `<div class="i-cell" style="background:rgba(69,241,195,${opacity})"></div>`;
-              })
-              .join("")}
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-top:10px">
-            ${["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-f);text-transform:uppercase">${d}</span>`).join("")}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+                <div class="kpi-grid">
+                  ${kpiCard("Total Stagiaires", interns.length, "group", "", "primary")}
+                  ${kpiCard("Présents Aujourd'hui", presentToday, "how_to_reg", "", "primary")}
+                  ${kpiCard("Services", depts.length, "corporate_fare", "", "primary")}
+                  ${kpiCard("Alertes Actives", alertCount, "warning", "", "error")}
+                </div>
+                <div class="grid3" style="margin-bottom:16px">
+                  <div class="card"><div class="card-header"><div><h3>Activité des Scans (30j)</h3><p>Présences & anomalies quotidiennes</p></div></div><div class="card-body"><div class="chart-wrap" style="height:280px"><canvas id="ch-global"></canvas></div></div></div>
+                  <div class="card"><div class="card-header"><div><h3>Répartition Risque</h3></div></div><div class="card-body"><div class="chart-wrap" style="height:280px;display:flex;align-items:center;justify-content:center"><canvas id="ch-donut"></canvas></div></div></div>
+                </div>
+                <div class="grid2">
+                  <div class="card">
+                    <div class="card-header" style="padding-bottom:16px"><div><h3>Derniers Scans</h3></div></div>
+                    <div class="card-body" style="padding-top:0;overflow-x:auto">
+                      <table class="data-table"><thead><tr><th>Stagiaire</th><th>Arrivée</th><th>Départ</th><th>Statut</th></tr></thead><tbody>
+                        ${history
+                          .slice(-15)
+                          .reverse()
+                          .map((h) => {
+                            const intern = interns.find(
+                              (i) => i.id === h.intern_id,
+                            );
+                            const name = intern
+                              ? `${intern.first_name} ${intern.last_name}`
+                              : h.intern_id.substring(0, 8) + "…";
+                            return `<tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:8px;background:var(--primary-d);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--primary)">${name[0]}</div><span style="font-weight:600;font-size:13px">${name}</span></div></td><td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td><td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td><td>${statusBadge(h.status, h.needs_attention)}</td></tr>`;
+                          })
+                          .join("")}
+                      </tbody></table>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <div class="card-header" style="padding-bottom:16px"><div><h3>Intensité Hebdomadaire</h3><p>Densité des scans par heure/jour</p></div></div>
+                    <div class="card-body" style="padding-top:0">
+                      <div class="intensity-grid">${Array.from({ length: 84 })
+                        .map(() => {
+                          const v = Math.random();
+                          const o =
+                            v > 0.8
+                              ? "1"
+                              : v > 0.5
+                                ? ".6"
+                                : v > 0.2
+                                  ? ".25"
+                                  : ".08";
+                          return `<div class="i-cell" style="background:rgba(69,241,195,${o})"></div>`;
+                        })
+                        .join("")}</div>
+                      <div style="display:flex;justify-content:space-between;margin-top:10px">${["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-f);text-transform:uppercase">${d}</span>`).join("")}</div>
+                    </div>
+                  </div>
+                </div>`;
 
         nextTick(() => {
           CHARTS["global"] = new Chart(document.getElementById("ch-global"), {
@@ -1984,7 +834,6 @@
               },
             },
           });
-
           CHARTS["donut"] = new Chart(document.getElementById("ch-donut"), {
             type: "doughnut",
             data: {
@@ -2024,24 +873,14 @@
             : color === "warn"
               ? "color:var(--warn)"
               : "color:var(--primary)";
-        return `<div class="kpi-card">
-    <div class="kpi-top">
-      <div class="kpi-label">${label}</div>
-      <div class="kpi-icon"><span class="material-symbols-outlined" style="${iconColor}">${icon}</span></div>
-    </div>
-    <div class="kpi-value">${value}</div>
-    <div class="kpi-bg-icon"><span class="material-symbols-outlined">${icon}</span></div>
-  </div>`;
+        return `<div class="kpi-card"><div class="kpi-top"><div class="kpi-label">${label}</div><div class="kpi-icon"><span class="material-symbols-outlined" style="${iconColor}">${icon}</span></div></div><div class="kpi-value">${value}</div><div class="kpi-bg-icon"><span class="material-symbols-outlined">${icon}</span></div></div>`;
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // VUE INDIVIDUELLE
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── VUE INDIVIDUELLE ─────────────────────────────────────────────────────
       function renderIndividual() {
         const interns = DATA.interns || [];
         const history = DATA.history || [];
         if (!SELECTED_INTERN && interns.length) SELECTED_INTERN = interns[0].id;
-
         const intern =
           interns.find((i) => i.id === SELECTED_INTERN) || interns[0];
         if (!intern) {
@@ -2049,7 +888,6 @@
             '<div class="empty-state"><span class="material-symbols-outlined">person_off</span><p>Aucun stagiaire trouvé.</p></div>';
           return;
         }
-
         const internHistory = history
           .filter((h) => h.intern_id === intern.id)
           .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -2073,86 +911,65 @@
           (d) => d.id === intern.department_id,
         );
         const deptName = dept ? dept.name : "—";
-
-        // chart data: last 14 days durations
         const chartDays = internHistory.slice(0, 14).reverse();
         const chartDates = chartDays.map((h) => fmtDate(h.date));
         const chartDurs = chartDays.map((h) => h.work_duration || 0);
 
         document.getElementById("view-container").innerHTML = `
-    <div class="grid3" style="align-items:start">
-      <div style="display:flex;flex-direction:column;gap:16px">
-
-        <div class="card card-body">
-          <label class="form-label" style="margin-bottom:8px">Sélectionner un stagiaire</label>
-          <select class="form-control" onchange="SELECTED_INTERN=this.value;switchView('individual')">
-            ${interns.map((i) => `<option value="${i.id}" ${i.id === intern.id ? "selected" : ""}>${i.first_name} ${i.last_name}</option>`).join("")}
-          </select>
-          <div style="text-align:center;margin-top:20px">
-            <div class="profile-avatar" style="width:64px;height:64px;border-radius:16px;font-size:22px;margin:0 auto 12px">${initials(intern.first_name, intern.last_name)}</div>
-            <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:#fff">${intern.first_name} ${intern.last_name}</div>
-            <div style="color:var(--text-f);font-size:12px;margin:4px 0 10px">${deptName}</div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;padding-top:16px;border-top:1px solid var(--border)">
-            <div style="text-align:center;background:var(--surface2);border-radius:var(--radius);padding:12px">
-              <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--primary)">${rate}%</div>
-              <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f)">Présence</div>
-            </div>
-            <div style="text-align:center;background:var(--surface2);border-radius:var(--radius);padding:12px">
-              <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:#fff">${avgDur}h</div>
-              <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f)">Moy/jour</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card card-body">
-          <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-m);margin-bottom:12px">Indice de Risque</div>
-          <div class="risk-gauge">
-            <svg viewBox="0 0 160 85">
-              <path d="M 20 80 A 60 60 0 0 1 140 80" fill="none" stroke="#1a2130" stroke-width="10" stroke-linecap="round"/>
-              <path d="M 20 80 A 60 60 0 0 1 140 80" fill="none" stroke="${riskColor}" stroke-width="10" stroke-linecap="round"
-                    stroke-dasharray="${risk * 1.88} 188" />
-              <text x="80" y="78" text-anchor="middle" font-family="Syne" font-size="24" font-weight="700" fill="${riskColor}">${risk}</text>
-              <text x="80" y="90" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#85948d">/ 100</text>
-            </svg>
-            <div class="risk-label">${risk < 30 ? "Risque Faible ✓" : risk < 60 ? "Risque Modéré" : "Risque Élevé !"}</div>
-          </div>
-        </div>
-
-      </div>
-
-      <div style="display:flex;flex-direction:column;gap:16px">
-        <div class="card">
-          <div class="card-header"><h3>Activité — 14 derniers jours</h3></div>
-          <div class="card-body"><div class="chart-wrap" style="height:240px"><canvas id="ch-ind"></canvas></div></div>
-        </div>
-
-        <div class="card">
-          <div class="card-header" style="margin-bottom:0"><h3>Historique des pointages</h3></div>
-          <div class="card-body" style="overflow-x:auto">
-            <table class="data-table">
-              <thead><tr><th>Date</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Statut</th></tr></thead>
-              <tbody>
-                ${internHistory
-                  .slice(0, 20)
-                  .map(
-                    (h) => `<tr>
-                  <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtDate(h.date)}</td>
-                  <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td>
-                  <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td>
-                  <td style="font-weight:600;color:var(--primary)">${(h.work_duration || 0).toFixed(1)}h</td>
-                  <td>${statusBadge(h.status, h.needs_attention)}</td>
-                </tr>`,
-                  )
-                  .join("")}
-              </tbody>
-            </table>
-            ${!internHistory.length ? '<div class="empty-state"><p>Aucun enregistrement pour ce stagiaire.</p></div>' : ""}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+                <div class="grid3" style="align-items:start">
+                  <div style="display:flex;flex-direction:column;gap:16px">
+                    <div class="card card-body">
+                      <label class="form-label" style="margin-bottom:8px">Sélectionner un stagiaire</label>
+                      <select class="form-control" onchange="SELECTED_INTERN=this.value;switchView('individual')">
+                        ${interns.map((i) => `<option value="${i.id}" ${i.id === intern.id ? "selected" : ""}>${i.first_name} ${i.last_name}</option>`).join("")}
+                      </select>
+                      <div style="text-align:center;margin-top:20px">
+                        <div class="profile-avatar" style="width:64px;height:64px;border-radius:16px;font-size:22px;margin:0 auto 12px">${initials(intern.first_name, intern.last_name)}</div>
+                        <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:#fff">${intern.first_name} ${intern.last_name}</div>
+                        <div style="color:var(--text-f);font-size:12px;margin:4px 0 10px">${deptName}</div>
+                        <!-- ★ Badge download button in individual view -->
+                        <button class="btn btn-badge" style="margin:0 auto;justify-content:center"
+                          onclick="generateBadgePDF('${intern.id}','${intern.first_name} ${intern.last_name}','${deptName}')">
+                          <span class="material-symbols-outlined">badge</span> Télécharger Badge PDF
+                        </button>
+                      </div>
+                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;padding-top:16px;border-top:1px solid var(--border)">
+                        <div style="text-align:center;background:var(--surface2);border-radius:var(--radius);padding:12px"><div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:var(--primary)">${rate}%</div><div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f)">Présence</div></div>
+                        <div style="text-align:center;background:var(--surface2);border-radius:var(--radius);padding:12px"><div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:700;color:#fff">${avgDur}h</div><div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f)">Moy/jour</div></div>
+                      </div>
+                    </div>
+                    <div class="card card-body">
+                      <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-m);margin-bottom:12px">Indice de Risque</div>
+                      <div class="risk-gauge">
+                        <svg viewBox="0 0 160 85">
+                          <path d="M 20 80 A 60 60 0 0 1 140 80" fill="none" stroke="#1a2130" stroke-width="10" stroke-linecap="round"/>
+                          <path d="M 20 80 A 60 60 0 0 1 140 80" fill="none" stroke="${riskColor}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${risk * 1.88} 188"/>
+                          <text x="80" y="78" text-anchor="middle" font-family="Syne" font-size="24" font-weight="700" fill="${riskColor}">${risk}</text>
+                          <text x="80" y="90" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#85948d">/ 100</text>
+                        </svg>
+                        <div class="risk-label">${risk < 30 ? "Risque Faible ✓" : risk < 60 ? "Risque Modéré" : "Risque Élevé !"}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:16px">
+                    <div class="card"><div class="card-header"><h3>Activité — 14 derniers jours</h3></div><div class="card-body"><div class="chart-wrap" style="height:240px"><canvas id="ch-ind"></canvas></div></div></div>
+                    <div class="card">
+                      <div class="card-header" style="margin-bottom:0"><h3>Historique des pointages</h3></div>
+                      <div class="card-body" style="overflow-x:auto">
+                        <table class="data-table"><thead><tr><th>Date</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Statut</th></tr></thead><tbody>
+                          ${internHistory
+                            .slice(0, 20)
+                            .map(
+                              (h) =>
+                                `<tr><td style="font-family:'DM Mono',monospace;font-size:11px">${fmtDate(h.date)}</td><td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td><td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td><td style="font-weight:600;color:var(--primary)">${(h.work_duration || 0).toFixed(1)}h</td><td>${statusBadge(h.status, h.needs_attention)}</td></tr>`,
+                            )
+                            .join("")}
+                        </tbody></table>
+                        ${!internHistory.length ? '<div class="empty-state"><p>Aucun enregistrement pour ce stagiaire.</p></div>' : ""}
+                      </div>
+                    </div>
+                  </div>
+                </div>`;
 
         nextTick(() => {
           CHARTS["ind"] = new Chart(document.getElementById("ch-ind"), {
@@ -2194,15 +1011,11 @@
         });
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // VUE DÉPARTEMENTALE
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── VUE DÉPARTEMENTALE ───────────────────────────────────────────────────
       function renderDepartment() {
         const depts = DATA.departments || [];
         const interns = DATA.interns || [];
         const history = DATA.history || [];
-
-        // Stats per dept
         const deptStats = depts.map((d) => {
           const dInterns = interns.filter((i) => i.department_id === d.id);
           const ids = dInterns.map((i) => i.id);
@@ -2226,38 +1039,11 @@
         });
 
         document.getElementById("view-container").innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:20px">
-      ${deptStats
-        .map(
-          (d) => `
-        <div class="dept-card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#fff">${d.name}</div>
-            <span class="material-symbols-outlined" style="color:var(--primary);font-size:20px">local_hospital</span>
-          </div>
-          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}">${d.rate}%</div>
-          <div style="font-size:11px;color:var(--text-f);margin-bottom:6px">taux de présence</div>
-          <div class="dept-bar-track"><div class="dept-bar-fill" style="width:${d.rate}%;background:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}"></div></div>
-          <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-            <span style="color:var(--text-m)">${d.nb} stagiaires</span>
-            <span style="color:${d.alerts > 0 ? "var(--error)" : "var(--primary)"};">${d.alerts} alertes</span>
-          </div>
-        </div>
-      `,
-        )
-        .join("")}
-    </div>
-
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-header"><h3>Comparatif des Services</h3></div>
-      <div class="card-body"><div class="chart-wrap" style="height:300px"><canvas id="ch-dept"></canvas></div></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header" style="margin-bottom:0"><h3>Taux de présence moyen par département</h3></div>
-      <div class="card-body"><div class="chart-wrap" style="height:220px"><canvas id="ch-dept2"></canvas></div></div>
-    </div>
-  `;
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:20px">
+                  ${deptStats.map((d) => `<div class="dept-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#fff">${d.name}</div><span class="material-symbols-outlined" style="color:var(--primary);font-size:20px">local_hospital</span></div><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}">${d.rate}%</div><div style="font-size:11px;color:var(--text-f);margin-bottom:6px">taux de présence</div><div class="dept-bar-track"><div class="dept-bar-fill" style="width:${d.rate}%;background:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}"></div></div><div style="display:flex;justify-content:space-between;font-size:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><span style="color:var(--text-m)">${d.nb} stagiaires</span><span style="color:${d.alerts > 0 ? "var(--error)" : "var(--primary)"};">${d.alerts} alertes</span></div></div>`).join("")}
+                </div>
+                <div class="card" style="margin-bottom:16px"><div class="card-header"><h3>Comparatif des Services</h3></div><div class="card-body"><div class="chart-wrap" style="height:300px"><canvas id="ch-dept"></canvas></div></div></div>
+                <div class="card"><div class="card-header" style="margin-bottom:0"><h3>Taux de présence moyen par département</h3></div><div class="card-body"><div class="chart-wrap" style="height:220px"><canvas id="ch-dept2"></canvas></div></div></div>`;
 
         nextTick(() => {
           CHARTS["dept"] = new Chart(document.getElementById("ch-dept"), {
@@ -2295,7 +1081,6 @@
               },
             },
           });
-
           CHARTS["dept2"] = new Chart(document.getElementById("ch-dept2"), {
             type: "bar",
             data: {
@@ -2333,76 +1118,51 @@
         });
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // CLUSTERS & ML
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── CLUSTERS & ML ────────────────────────────────────────────────────────
       function renderClusters() {
-        // PCA scatter is still illustrative (no real ML endpoint to call)
         document.getElementById("view-container").innerHTML = `
-    <div class="grid3">
-      <div class="card">
-        <div class="card-header">
-          <div><h3>Analyse Comportementale ML</h3><p>Visualisation PCA — données de présence</p></div>
-          <div style="display:flex;gap:8px">
-            <button class="toggle-btn active" id="kmeans-btn" onclick="setAlgoActive('kmeans')">K-MEANS</button>
-            <button class="toggle-btn" id="dbscan-btn" onclick="setAlgoActive('dbscan')">DBSCAN</button>
-          </div>
-        </div>
-        <div class="card-body"><div class="chart-wrap" style="height:420px"><canvas id="ch-pca"></canvas></div></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:0">
-        <div class="card">
-          <div class="card-header"><h3>Segments Détectés</h3></div>
-          <div class="card-body">
-            ${[
-              {
-                label: "Cluster Alpha — Profils Fiables",
-                color: "#45f1c3",
-                pct: 65,
-                desc: "Régularité exemplaire, scans stables. Faible variabilité horaire.",
-              },
-              {
-                label: "Cluster Beta — Instabilité Modérée",
-                color: "#ffcea6",
-                pct: 25,
-                desc: "Horaires variables, anomalies mineures fréquentes.",
-              },
-              {
-                label: "Cluster Gamma — Profils à Risque",
-                color: "#ffb4ab",
-                pct: 10,
-                desc: "Retards fréquents, absences prolongées.",
-              },
-            ]
-              .map(
-                (c) => `
-              <div class="cluster-segment">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                  <h4>${c.label}</h4>
-                  <span style="font-family:'DM Mono',monospace;font-size:11px;color:${c.color}">${c.pct}%</span>
-                </div>
-                <p>${c.desc}</p>
-                <div class="cluster-bar"><div style="width:${c.pct}%;background:${c.color}"></div></div>
-              </div>
-            `,
-              )
-              .join("")}
-
-            <div style="background:var(--primary-d);border:1px solid var(--primary-g);border-radius:var(--radius);padding:12px;margin-top:4px">
-              <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--primary);letter-spacing:.1em;margin-bottom:4px">Shadow Mode Actif</div>
-              <p style="font-size:12px;color:var(--text-m)">Modèle entraîné sur données synthétiques. Résultats indicatifs seulement.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+                <div class="grid3">
+                  <div class="card">
+                    <div class="card-header"><div><h3>Analyse Comportementale ML</h3><p>Visualisation PCA — données de présence</p></div><div style="display:flex;gap:8px"><button class="toggle-btn active" id="kmeans-btn" onclick="setAlgoActive('kmeans')">K-MEANS</button><button class="toggle-btn" id="dbscan-btn" onclick="setAlgoActive('dbscan')">DBSCAN</button></div></div>
+                    <div class="card-body"><div class="chart-wrap" style="height:420px"><canvas id="ch-pca"></canvas></div></div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:0">
+                    <div class="card"><div class="card-header"><h3>Segments Détectés</h3></div><div class="card-body">
+                      ${[
+                        {
+                          label: "Cluster Alpha — Profils Fiables",
+                          color: "#45f1c3",
+                          pct: 65,
+                          desc: "Régularité exemplaire, scans stables. Faible variabilité horaire.",
+                        },
+                        {
+                          label: "Cluster Beta — Instabilité Modérée",
+                          color: "#ffcea6",
+                          pct: 25,
+                          desc: "Horaires variables, anomalies mineures fréquentes.",
+                        },
+                        {
+                          label: "Cluster Gamma — Profils à Risque",
+                          color: "#ffb4ab",
+                          pct: 10,
+                          desc: "Retards fréquents, absences prolongées.",
+                        },
+                      ]
+                        .map(
+                          (c) =>
+                            `<div class="cluster-segment"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><h4>${c.label}</h4><span style="font-family:'DM Mono',monospace;font-size:11px;color:${c.color}">${c.pct}%</span></div><p>${c.desc}</p><div class="cluster-bar"><div style="width:${c.pct}%;background:${c.color}"></div></div></div>`,
+                        )
+                        .join("")}
+                      <div style="background:var(--primary-d);border:1px solid var(--primary-g);border-radius:var(--radius);padding:12px;margin-top:4px"><div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--primary);letter-spacing:.1em;margin-bottom:4px">Shadow Mode Actif</div><p style="font-size:12px;color:var(--text-m)">Modèle entraîné sur données synthétiques. Résultats indicatifs seulement.</p></div>
+                    </div></div>
+                  </div>
+                </div>`;
 
         nextTick(() => {
-          function genCluster(cx, cy, n, spread = 1.5) {
+          function genCluster(cx, cy, n, s = 1.5) {
             return Array.from({ length: n }, () => ({
-              x: cx + (Math.random() - 0.5) * spread,
-              y: cy + (Math.random() - 0.5) * spread,
+              x: cx + (Math.random() - 0.5) * s,
+              y: cy + (Math.random() - 0.5) * s,
             }));
           }
           CHARTS["pca"] = new Chart(document.getElementById("ch-pca"), {
@@ -2467,7 +1227,6 @@
           });
         });
       }
-
       function setAlgoActive(algo) {
         document
           .getElementById("kmeans-btn")
@@ -2477,63 +1236,49 @@
           .classList.toggle("active", algo === "dbscan");
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // JOURNAL DES ALERTES
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── JOURNAL DES ALERTES ──────────────────────────────────────────────────
       function renderAlerts() {
         const history = DATA.history || [];
         const interns = DATA.interns || [];
         const alerts = history
           .filter((h) => h.needs_attention)
           .sort((a, b) => new Date(b.date) - new Date(a.date));
-
         document.getElementById("view-container").innerHTML = `
-    <div class="card">
-      <div class="card-header" style="padding-bottom:16px">
-        <div>
-          <h3>Journal des Anomalies</h3>
-          <p>${alerts.length} événement(s) nécessitant attention</p>
-        </div>
-        ${
-          isSuperAdmin()
-            ? `
-        <button class="btn btn-danger" onclick="markAbsences()">
-          <span class="material-symbols-outlined">event_busy</span> Marquer absences du jour
-        </button>`
-            : ""
-        }
-      </div>
-      <div class="card-body" style="padding-top:0">
-        ${
-          alerts.length === 0
-            ? '<div class="empty-state"><span class="material-symbols-outlined">check_circle</span><p>Aucune anomalie détectée — tout est nominal.</p></div>'
-            : `
-        <div id="alerts-msg"></div>
-        <table class="data-table">
-          <thead><tr><th>Date</th><th>Stagiaire</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Statut</th></tr></thead>
-          <tbody>
-            ${alerts
-              .map((h) => {
-                const intern = interns.find((i) => i.id === h.intern_id);
-                const name = intern
-                  ? `${intern.first_name} ${intern.last_name}`
-                  : h.intern_id.substring(0, 8) + "…";
-                return `<tr>
-                <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtDate(h.date)}</td>
-                <td style="font-weight:600">${name}</td>
-                <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td>
-                <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td>
-                <td style="color:var(--text-m);font-size:12px">${(h.work_duration || 0).toFixed(1)}h</td>
-                <td>${statusBadge(h.status, h.needs_attention)}</td>
-              </tr>`;
-              })
-              .join("")}
-          </tbody>
-        </table>`
-        }
-      </div>
-    </div>
-  `;
+                <div class="card">
+                  <div class="card-header" style="padding-bottom:16px">
+                    <div><h3>Journal des Anomalies</h3><p>${alerts.length} événement(s) nécessitant attention</p></div>
+                    ${
+                      isSuperAdmin()
+                        ? `
+                      <div style="display:flex;gap:8px">
+                        <button class="btn btn-danger" onclick="markAbsences()"><span class="material-symbols-outlined">event_busy</span> Marquer absences du jour</button>
+                        <button class="btn btn-ghost" onclick="undoAbsences()"><span class="material-symbols-outlined">undo</span> Annuler les absences</button>
+                      </div>`
+                        : ""
+                    }
+                  </div>
+                  <div class="card-body" style="padding-top:0">
+                    ${
+                      alerts.length === 0
+                        ? '<div class="empty-state"><span class="material-symbols-outlined">check_circle</span><p>Aucune anomalie détectée — tout est nominal.</p></div>'
+                        : `
+                    <div id="alerts-msg"></div>
+                    <table class="data-table"><thead><tr><th>Date</th><th>Stagiaire</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Statut</th></tr></thead><tbody>
+                      ${alerts
+                        .map((h) => {
+                          const intern = interns.find(
+                            (i) => i.id === h.intern_id,
+                          );
+                          const name = intern
+                            ? `${intern.first_name} ${intern.last_name}`
+                            : h.intern_id.substring(0, 8) + "…";
+                          return `<tr><td style="font-family:'DM Mono',monospace;font-size:11px">${fmtDate(h.date)}</td><td style="font-weight:600">${name}</td><td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.arrival_time)}</td><td style="font-family:'DM Mono',monospace;font-size:12px">${fmtTime(h.departure_time)}</td><td style="color:var(--text-m);font-size:12px">${(h.work_duration || 0).toFixed(1)}h</td><td>${statusBadge(h.status, h.needs_attention)}</td></tr>`;
+                        })
+                        .join("")}
+                    </tbody></table>`
+                    }
+                  </div>
+                </div>`;
       }
 
       async function markAbsences() {
@@ -2551,18 +1296,31 @@
         }
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // ADMINISTRATION
-      // ─────────────────────────────────────────────────────────────────────────────
+      async function undoAbsences() {
+        try {
+          const res = await apiFetch("/admin/undo-absences", {
+            method: "DELETE",
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur serveur");
+          showToast(data.message || "Absences annulées ✅", "success");
+          await loadData();
+          renderAlerts();
+        } catch (e) {
+          showToast(e.message, "error");
+        }
+      }
+
+      // ── ADMINISTRATION ───────────────────────────────────────────────────────
       function renderAdmin() {
         document.getElementById("view-container").innerHTML = `
-    <div class="tabs">
-      <button class="tab active" id="tab-interns"  onclick="showAdminTab('interns')">👥 Stagiaires</button>
-      <button class="tab"        id="tab-accounts" onclick="showAdminTab('accounts')">🔑 Comptes Admin</button>
-      <button class="tab"        id="tab-pwd"      onclick="showAdminTab('pwd')">🔒 Mot de passe</button>
-    </div>
-    <div id="admin-content"></div>
-  `;
+                <div class="tabs">
+                  <button class="tab active" id="tab-interns"    onclick="showAdminTab('interns')">👥 Stagiaires</button>
+                  <button class="tab"        id="tab-depts"      onclick="showAdminTab('depts')">🏥 Départements</button>
+                  <button class="tab"        id="tab-accounts"   onclick="showAdminTab('accounts')">🔑 Comptes Admin</button>
+                  <button class="tab"        id="tab-pwd"        onclick="showAdminTab('pwd')">🔒 Mot de passe</button>
+                </div>
+                <div id="admin-content"></div>`;
         showAdminTab("interns");
       }
 
@@ -2575,6 +1333,9 @@
           case "interns":
             renderAdminInterns();
             break;
+          case "depts":
+            renderAdminDepts();
+            break;
           case "accounts":
             renderAdminAccounts();
             break;
@@ -2584,63 +1345,410 @@
         }
       }
 
+      // ── ★ DEPARTMENTS TAB ────────────────────────────────────────────────────
+      function renderAdminDepts() {
+        const depts = DATA.departments || [];
+        const interns = DATA.interns || [];
+
+        document.getElementById("admin-content").innerHTML = `
+                <div class="grid2" style="align-items:start">
+                  <div class="card">
+                    <div class="admin-section-header card-header">
+                      <h3>Départements</h3>
+                      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-f)">${depts.length} enregistrés</span>
+                    </div>
+                    <div class="card-body" style="padding-top:0">
+                      <div id="dept-list-msg"></div>
+                      ${
+                        depts.length === 0
+                          ? '<div class="empty-state"><span class="material-symbols-outlined">corporate_fare</span><p>Aucun département. Commencez par en créer un.</p></div>'
+                          : `
+                      <table class="data-table">
+                        <thead><tr><th>Nom du département</th><th>Stagiaires</th><th>Actions</th></tr></thead>
+                        <tbody>
+                          ${depts
+                            .map((d) => {
+                              const nb = interns.filter(
+                                (i) => i.department_id === d.id,
+                              ).length;
+                              return `<tr id="dept-row-${d.id}">
+                              <td>
+                                <span id="dept-label-${d.id}" style="font-weight:600">${d.name}</span>
+                                <input id="dept-input-${d.id}" class="form-control" value="${d.name}"
+                                  style="display:none;padding:5px 10px;font-size:13px;width:100%"
+                                  onkeydown="if(event.key==='Enter')saveDeptName('${d.id}');if(event.key==='Escape')cancelEditDept('${d.id}','${d.name}')" />
+                              </td>
+                              <td><span class="badge badge-grey">${nb}</span></td>
+                              <td>
+                                <div style="display:flex;gap:6px">
+                                  <button id="dept-edit-btn-${d.id}" class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="startEditDept('${d.id}')" title="Renommer">
+                                    <span class="material-symbols-outlined" style="font-size:13px">edit</span>
+                                  </button>
+                                  <button id="dept-save-btn-${d.id}" class="btn btn-primary" style="padding:4px 10px;font-size:11px;display:none" onclick="saveDeptName('${d.id}')">
+                                    <span class="material-symbols-outlined" style="font-size:13px">check</span>
+                                  </button>
+                                  <button id="dept-cancel-btn-${d.id}" class="btn btn-ghost" style="padding:4px 10px;font-size:11px;display:none" onclick="cancelEditDept('${d.id}','${d.name}')">
+                                    <span class="material-symbols-outlined" style="font-size:13px">close</span>
+                                  </button>
+                                  <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDeleteDept('${d.id}','${d.name}',${nb})" ${nb > 0 ? "disabled title='Réassignez les stagiaires d\\'abord'" : ""}>
+                                    <span class="material-symbols-outlined" style="font-size:13px">delete</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>`;
+                            })
+                            .join("")}
+                        </tbody>
+                      </table>`
+                      }
+                    </div>
+                  </div>
+
+                  <div class="card">
+                    <div class="card-header"><h3>Ajouter un Département</h3></div>
+                    <div class="card-body">
+                      <div id="add-dept-msg"></div>
+                      <div class="form-group">
+                        <label class="form-label">Nom du département</label>
+                        <input class="form-control" id="inp-dept-name" placeholder="Ex: Radiologie, Ophtalmologie…" />
+                      </div>
+                      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="addDept()">
+                        <span class="material-symbols-outlined">add_circle</span> Créer le département
+                      </button>
+                      <div style="margin-top:20px;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+                        <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f);margin-bottom:6px">ℹ Note</div>
+                        <p style="font-size:12px;color:var(--text-m)">Double-cliquez sur un nom ou cliquez ✏️ pour renommer. Un département ne peut pas être supprimé tant qu'il contient des stagiaires.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>`;
+
+        // Also wire up double-click to edit
+        depts.forEach((d) => {
+          const label = document.getElementById(`dept-label-${d.id}`);
+          if (label)
+            label.addEventListener("dblclick", () => startEditDept(d.id));
+        });
+      }
+
+      function startEditDept(id) {
+        document.getElementById(`dept-label-${id}`).style.display = "none";
+        document.getElementById(`dept-input-${id}`).style.display = "block";
+        document.getElementById(`dept-edit-btn-${id}`).style.display = "none";
+        document.getElementById(`dept-save-btn-${id}`).style.display =
+          "inline-flex";
+        document.getElementById(`dept-cancel-btn-${id}`).style.display =
+          "inline-flex";
+        document.getElementById(`dept-input-${id}`).focus();
+        document.getElementById(`dept-input-${id}`).select();
+      }
+
+      function cancelEditDept(id, originalName) {
+        document.getElementById(`dept-label-${id}`).style.display = "";
+        document.getElementById(`dept-input-${id}`).style.display = "none";
+        document.getElementById(`dept-input-${id}`).value = originalName;
+        document.getElementById(`dept-edit-btn-${id}`).style.display =
+          "inline-flex";
+        document.getElementById(`dept-save-btn-${id}`).style.display = "none";
+        document.getElementById(`dept-cancel-btn-${id}`).style.display = "none";
+      }
+
+      async function saveDeptName(id) {
+        const newName = document
+          .getElementById(`dept-input-${id}`)
+          .value.trim();
+        if (!newName) {
+          showToast("Le nom ne peut pas être vide", "error");
+          return;
+        }
+        try {
+          const res = await apiFetch(`/departments/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ name: newName }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur");
+          showToast(`✅ Département renommé en "${newName}"`, "success");
+          // Update local DATA without full reload
+          const dept = DATA.departments.find((d) => d.id === id);
+          if (dept) dept.name = newName;
+          // Update label in-place without re-render
+          const label = document.getElementById(`dept-label-${id}`);
+          if (label) label.textContent = newName;
+          cancelEditDept(id, newName);
+        } catch (e) {
+          showToast(e.message, "error");
+        }
+      }
+
+      async function addDept() {
+        const name = document.getElementById("inp-dept-name").value.trim();
+        const msgEl = document.getElementById("add-dept-msg");
+        if (!name) {
+          msgEl.innerHTML =
+            '<div class="alert alert-error">Veuillez saisir un nom.</div>';
+          return;
+        }
+        try {
+          const res = await apiFetch("/departments", {
+            method: "POST",
+            body: JSON.stringify({ name }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur serveur");
+          showToast(`✅ Département "${name}" créé`, "success");
+          document.getElementById("inp-dept-name").value = "";
+          // Refresh departments in DATA
+          const dRes = await apiFetch("/departments");
+          DATA.departments = await dRes.json();
+          renderAdminDepts();
+        } catch (e) {
+          msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+        }
+      }
+
+      function confirmDeleteDept(id, name, internCount) {
+        if (internCount > 0) {
+          showToast(
+            `Impossible : ${internCount} stagiaire(s) assigné(s) à "${name}"`,
+            "error",
+          );
+          return;
+        }
+        openModal(
+          "Supprimer ce département ?",
+          `Êtes-vous sûr de vouloir supprimer <strong style="color:#fff">${name}</strong> ? Cette action est irréversible.`,
+          `<button class="btn btn-danger" onclick="deleteDept('${id}')"><span class="material-symbols-outlined">delete_forever</span> Supprimer</button>
+                 <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>`,
+        );
+      }
+
+      async function deleteDept(id) {
+        try {
+          const res = await apiFetch(`/departments/${id}`, {
+            method: "DELETE",
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur");
+          showToast(data.message || "Département supprimé", "success");
+          closeModal();
+          const dRes = await apiFetch("/departments");
+          DATA.departments = await dRes.json();
+          renderAdminDepts();
+        } catch (e) {
+          showToast(e.message, "error");
+          closeModal();
+        }
+      }
+
+      // ── INTERNS TAB (with inline edit + badge buttons) ────────────────────────
       function renderAdminInterns() {
         const interns = DATA.interns || [];
         const depts = DATA.departments || [];
-
         document.getElementById("admin-content").innerHTML = `
-    <div class="grid2" style="align-items:start">
-      <div class="card">
-        <div class="admin-section-header card-header"><h3>Liste des Stagiaires</h3>
-          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-f)">${interns.length} enregistrés</span>
-        </div>
-        <div class="card-body" style="padding-top:0;overflow-x:auto">
-          <table class="data-table">
-            <thead><tr><th>Nom</th><th>Service</th><th>UUID</th><th></th></tr></thead>
-            <tbody>
-              ${interns
-                .map((i) => {
-                  const dept = depts.find((d) => d.id === i.department_id);
-                  return `<tr>
-                  <td style="font-weight:600">${i.first_name} ${i.last_name}</td>
-                  <td>${dept ? dept.name : "—"}</td>
-                  <td style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-f)">${i.id.substring(0, 12)}…</td>
-                  <td><button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDeleteIntern('${i.id}','${i.first_name} ${i.last_name}')">
-                    <span class="material-symbols-outlined" style="font-size:13px">delete</span>
-                  </button></td>
-                </tr>`;
-                })
-                .join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                <div class="grid2" style="align-items:start">
+                  <div class="card">
+                    <div class="admin-section-header card-header">
+                      <h3>Liste des Stagiaires</h3>
+                      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-f)">${interns.length} enregistrés</span>
+                    </div>
+                    <div class="card-body" style="padding-top:0;overflow-x:auto">
+                      <table class="data-table">
+                        <thead><tr><th>Prénom</th><th>Nom</th><th>Service</th><th>Badge</th><th>Actions</th></tr></thead>
+                        <tbody>
+                          ${interns
+                            .map((i) => {
+                              const dept = depts.find(
+                                (d) => d.id === i.department_id,
+                              );
+                              const dName = dept ? dept.name : "—";
+                              const deptOptions = depts
+                                .map(
+                                  (d) =>
+                                    `<option value="${d.id}" ${d.id === i.department_id ? "selected" : ""}>${d.name}</option>`,
+                                )
+                                .join("");
+                              return `<tr id="intern-row-${i.id}">
+                              <!-- FIRST NAME: display / edit -->
+                              <td>
+                                <span id="intern-fn-label-${i.id}" style="font-weight:600">${i.first_name}</span>
+                                <input id="intern-fn-input-${i.id}" class="form-control" value="${i.first_name}"
+                                  style="display:none;padding:5px 8px;font-size:13px;min-width:90px"
+                                  onkeydown="if(event.key==='Enter')saveIntern('${i.id}');if(event.key==='Escape')cancelEditIntern('${i.id}','${i.first_name}','${i.last_name}','${i.department_id}')" />
+                              </td>
+                              <!-- LAST NAME: display / edit -->
+                              <td>
+                                <span id="intern-ln-label-${i.id}" style="font-weight:600">${i.last_name}</span>
+                                <input id="intern-ln-input-${i.id}" class="form-control" value="${i.last_name}"
+                                  style="display:none;padding:5px 8px;font-size:13px;min-width:90px"
+                                  onkeydown="if(event.key==='Enter')saveIntern('${i.id}');if(event.key==='Escape')cancelEditIntern('${i.id}','${i.first_name}','${i.last_name}','${i.department_id}')" />
+                              </td>
+                              <!-- DEPT: display / edit -->
+                              <td>
+                                <span id="intern-dept-label-${i.id}">${dName}</span>
+                                <select id="intern-dept-select-${i.id}" class="form-control"
+                                  style="display:none;padding:5px 8px;font-size:13px;min-width:120px">
+                                  ${deptOptions}
+                                </select>
+                              </td>
+                              <!-- BADGE -->
+                              <td>
+                                <button class="btn btn-badge" style="padding:4px 10px;font-size:11px"
+                                  onclick="generateBadgePDF('${i.id}','${i.first_name} ${i.last_name}','${dName}')">
+                                  <span class="material-symbols-outlined" style="font-size:13px">badge</span> PDF
+                                </button>
+                              </td>
+                              <!-- ACTIONS -->
+                              <td>
+                                <div style="display:flex;gap:6px">
+                                  <button id="intern-edit-btn-${i.id}" class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="startEditIntern('${i.id}')" title="Modifier">
+                                    <span class="material-symbols-outlined" style="font-size:13px">edit</span>
+                                  </button>
+                                  <button id="intern-save-btn-${i.id}" class="btn btn-primary" style="padding:4px 10px;font-size:11px;display:none" onclick="saveIntern('${i.id}')">
+                                    <span class="material-symbols-outlined" style="font-size:13px">check</span>
+                                  </button>
+                                  <button id="intern-cancel-btn-${i.id}" class="btn btn-ghost" style="padding:4px 10px;font-size:11px;display:none" onclick="cancelEditIntern('${i.id}','${i.first_name}','${i.last_name}','${i.department_id}')">
+                                    <span class="material-symbols-outlined" style="font-size:13px">close</span>
+                                  </button>
+                                  <button class="btn btn-danger" style="padding:4px 10px;font-size:11px"
+                                    onclick="confirmDeleteIntern('${i.id}','${i.first_name} ${i.last_name}')">
+                                    <span class="material-symbols-outlined" style="font-size:13px">delete</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>`;
+                            })
+                            .join("")}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <div class="card-header"><h3>Ajouter un Stagiaire</h3></div>
+                    <div class="card-body">
+                      <div id="add-intern-msg"></div>
+                      <div class="form-group"><label class="form-label">Prénom</label><input class="form-control" id="inp-fn" placeholder="Prénom"/></div>
+                      <div class="form-group"><label class="form-label">Nom</label><input class="form-control" id="inp-ln" placeholder="Nom de famille"/></div>
+                      <div class="form-group"><label class="form-label">Service</label>
+                        <select class="form-control" id="inp-dept">
+                          ${depts.length === 0 ? '<option value="" disabled>— Aucun département disponible —</option>' : depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}
+                        </select>
+                      </div>
+                      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="addIntern()" ${depts.length === 0 ? "disabled" : ""}>
+                        <span class="material-symbols-outlined">person_add</span> Enregistrer
+                      </button>
+                      ${depts.length === 0 ? '<div class="alert alert-warn" style="margin-top:12px"><span class="material-symbols-outlined" style="font-size:16px">warning</span> Créez d\'abord un département dans l\'onglet Départements.</div>' : ""}
+                      <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+                        <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f);margin-bottom:4px">ℹ Modifier un stagiaire</div>
+                        <p style="font-size:12px;color:var(--text-m)">Cliquez ✏️ sur une ligne pour modifier le nom ou le service. Confirmez avec ✓ ou annulez avec ✕. Vous pouvez aussi double-cliquer sur le nom.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>`;
 
-      <div class="card">
-        <div class="card-header"><h3>Ajouter un Stagiaire</h3></div>
-        <div class="card-body">
-          <div id="add-intern-msg"></div>
-          <div class="form-group">
-            <label class="form-label">Prénom</label>
-            <input class="form-control" id="inp-fn" placeholder="Prénom"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Nom</label>
-            <input class="form-control" id="inp-ln" placeholder="Nom de famille"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Service</label>
-            <select class="form-control" id="inp-dept">
-              ${depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}
-            </select>
-          </div>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="addIntern()">
-            <span class="material-symbols-outlined">person_add</span> Enregistrer
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
+        // Wire up double-click to edit on name cells
+        interns.forEach((i) => {
+          const fn = document.getElementById(`intern-fn-label-${i.id}`);
+          const ln = document.getElementById(`intern-ln-label-${i.id}`);
+          if (fn) fn.addEventListener("dblclick", () => startEditIntern(i.id));
+          if (ln) ln.addEventListener("dblclick", () => startEditIntern(i.id));
+        });
+      }
+
+      function startEditIntern(id) {
+        // show inputs, hide labels
+        ["fn", "ln"].forEach((f) => {
+          document.getElementById(`intern-${f}-label-${id}`).style.display =
+            "none";
+          document.getElementById(`intern-${f}-input-${id}`).style.display =
+            "block";
+        });
+        document.getElementById(`intern-dept-label-${id}`).style.display =
+          "none";
+        document.getElementById(`intern-dept-select-${id}`).style.display =
+          "block";
+        document.getElementById(`intern-edit-btn-${id}`).style.display = "none";
+        document.getElementById(`intern-save-btn-${id}`).style.display =
+          "inline-flex";
+        document.getElementById(`intern-cancel-btn-${id}`).style.display =
+          "inline-flex";
+        document.getElementById(`intern-fn-input-${id}`).focus();
+      }
+
+      function cancelEditIntern(id, origFn, origLn, origDeptId) {
+        document.getElementById(`intern-fn-input-${id}`).value = origFn;
+        document.getElementById(`intern-ln-input-${id}`).value = origLn;
+        const sel = document.getElementById(`intern-dept-select-${id}`);
+        if (sel) sel.value = origDeptId;
+        ["fn", "ln"].forEach((f) => {
+          document.getElementById(`intern-${f}-label-${id}`).style.display = "";
+          document.getElementById(`intern-${f}-input-${id}`).style.display =
+            "none";
+        });
+        document.getElementById(`intern-dept-label-${id}`).style.display = "";
+        document.getElementById(`intern-dept-select-${id}`).style.display =
+          "none";
+        document.getElementById(`intern-edit-btn-${id}`).style.display =
+          "inline-flex";
+        document.getElementById(`intern-save-btn-${id}`).style.display = "none";
+        document.getElementById(`intern-cancel-btn-${id}`).style.display =
+          "none";
+      }
+
+      async function saveIntern(id) {
+        const first_name = document
+          .getElementById(`intern-fn-input-${id}`)
+          .value.trim();
+        const last_name = document
+          .getElementById(`intern-ln-input-${id}`)
+          .value.trim();
+        const department_id = document.getElementById(
+          `intern-dept-select-${id}`,
+        ).value;
+        if (!first_name || !last_name) {
+          showToast("Le nom ne peut pas être vide", "error");
+          return;
+        }
+        try {
+          const res = await apiFetch(`/interns/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ first_name, last_name, department_id }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur");
+          showToast(`✅ ${first_name} ${last_name} mis à jour`, "success");
+
+          // Update DATA in-place
+          const intern = DATA.interns.find((i) => i.id === id);
+          if (intern) {
+            intern.first_name = first_name;
+            intern.last_name = last_name;
+            intern.department_id = department_id;
+          }
+
+          // Update labels in-place
+          document.getElementById(`intern-fn-label-${id}`).textContent =
+            first_name;
+          document.getElementById(`intern-ln-label-${id}`).textContent =
+            last_name;
+          const dept = DATA.departments.find((d) => d.id === department_id);
+          const deptName = dept ? dept.name : "—";
+          document.getElementById(`intern-dept-label-${id}`).textContent =
+            deptName;
+
+          // Refresh badge button onclick with updated name + department
+          const badgeBtn = document.querySelector(
+            `#intern-row-${id} .btn-badge`,
+          );
+          if (badgeBtn) {
+            badgeBtn.onclick = () =>
+              generateBadgePDF(id, `${first_name} ${last_name}`, deptName);
+          }
+
+          cancelEditIntern(id, first_name, last_name, department_id);
+        } catch (e) {
+          showToast(e.message, "error");
+        }
       }
 
       async function addIntern() {
@@ -2648,13 +1756,11 @@
         const last_name = document.getElementById("inp-ln").value.trim();
         const department_id = document.getElementById("inp-dept").value;
         const msgEl = document.getElementById("add-intern-msg");
-
         if (!first_name || !last_name) {
           msgEl.innerHTML =
             '<div class="alert alert-error">Veuillez remplir tous les champs.</div>';
           return;
         }
-
         try {
           const res = await apiFetch("/interns/add", {
             method: "POST",
@@ -2676,11 +1782,9 @@
         openModal(
           "Supprimer ce stagiaire ?",
           `Êtes-vous sûr de vouloir supprimer <strong style="color:#fff">${name}</strong> ? Cette action est irréversible.`,
-          `<button class="btn btn-danger" onclick="deleteIntern('${id}')"><span class="material-symbols-outlined">delete_forever</span> Supprimer</button>
-     <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>`,
+          `<button class="btn btn-danger" onclick="deleteIntern('${id}')"><span class="material-symbols-outlined">delete_forever</span> Supprimer</button><button class="btn btn-ghost" onclick="closeModal()">Annuler</button>`,
         );
       }
-
       async function deleteIntern(id) {
         try {
           const res = await apiFetch(`/interns/${id}`, { method: "DELETE" });
@@ -2696,73 +1800,40 @@
         }
       }
 
+      // ── ACCOUNTS TAB ─────────────────────────────────────────────────────────
       function renderAdminAccounts() {
         const admins = DATA.admins || [];
         const depts = DATA.departments || [];
-
         document.getElementById("admin-content").innerHTML = `
-    <div class="grid2" style="align-items:start">
-      <div class="card">
-        <div class="card-header"><h3>Comptes Administrateurs</h3></div>
-        <div class="card-body" style="padding-top:0">
-          <table class="data-table">
-            <thead><tr><th>Identifiant</th><th>Rôle</th><th>Département</th><th></th></tr></thead>
-            <tbody>
-              ${admins
-                .map((a) => {
-                  const dept = depts.find((d) => d.id === a.department_id);
-                  const isMe = a.username === AUTH.username;
-                  return `<tr>
-                  <td style="font-weight:600">${a.username}${isMe ? ' <span style="font-size:10px;color:var(--primary)">(moi)</span>' : ""}</td>
-                  <td>${a.role === "super_admin" ? '<span class="badge badge-green">Super Admin</span>' : '<span class="badge badge-grey">Superviseur</span>'}</td>
-                  <td style="font-size:12px;color:var(--text-m)">${dept ? dept.name : a.role === "super_admin" ? "Tous" : "—"}</td>
-                  <td>${
-                    !isMe
-                      ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDeleteAdmin('${a.id}','${a.username}')">
-                    <span class="material-symbols-outlined" style="font-size:13px">delete</span>
-                  </button>`
-                      : ""
-                  }</td>
-                </tr>`;
-                })
-                .join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><h3>Créer un Compte</h3></div>
-        <div class="card-body">
-          <div id="create-admin-msg"></div>
-          <div class="form-group">
-            <label class="form-label">Identifiant</label>
-            <input class="form-control" id="ca-user" placeholder="nom_utilisateur"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Mot de passe (min. 8 car.)</label>
-            <input class="form-control" id="ca-pwd" type="password" placeholder="••••••••"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Rôle</label>
-            <select class="form-control" id="ca-role" onchange="toggleDeptField()">
-              <option value="supervisor">Superviseur</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
-          </div>
-          <div class="form-group" id="ca-dept-group">
-            <label class="form-label">Département (obligatoire pour superviseur)</label>
-            <select class="form-control" id="ca-dept">
-              ${depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}
-            </select>
-          </div>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="createAdmin()">
-            <span class="material-symbols-outlined">person_add</span> Créer le compte
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
+                <div class="grid2" style="align-items:start">
+                  <div class="card">
+                    <div class="card-header"><h3>Comptes Administrateurs</h3></div>
+                    <div class="card-body" style="padding-top:0">
+                      <table class="data-table"><thead><tr><th>Identifiant</th><th>Rôle</th><th>Département</th><th></th></tr></thead><tbody>
+                        ${admins
+                          .map((a) => {
+                            const dept = depts.find(
+                              (d) => d.id === a.department_id,
+                            );
+                            const isMe = a.username === AUTH.username;
+                            return `<tr><td style="font-weight:600">${a.username}${isMe ? ' <span style="font-size:10px;color:var(--primary)">(moi)</span>' : ""}</td><td>${a.role === "super_admin" ? '<span class="badge badge-green">Super Admin</span>' : '<span class="badge badge-grey">Superviseur</span>'}</td><td style="font-size:12px;color:var(--text-m)">${dept ? dept.name : a.role === "super_admin" ? "Tous" : "—"}</td><td>${!isMe ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDeleteAdmin('${a.id}','${a.username}')"><span class="material-symbols-outlined" style="font-size:13px">delete</span></button>` : ""}</td></tr>`;
+                          })
+                          .join("")}
+                      </tbody></table>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <div class="card-header"><h3>Créer un Compte</h3></div>
+                    <div class="card-body">
+                      <div id="create-admin-msg"></div>
+                      <div class="form-group"><label class="form-label">Identifiant</label><input class="form-control" id="ca-user" placeholder="nom_utilisateur"/></div>
+                      <div class="form-group"><label class="form-label">Mot de passe (min. 8 car.)</label><input class="form-control" id="ca-pwd" type="password" placeholder="••••••••"/></div>
+                      <div class="form-group"><label class="form-label">Rôle</label><select class="form-control" id="ca-role" onchange="toggleDeptField()"><option value="supervisor">Superviseur</option><option value="super_admin">Super Admin</option></select></div>
+                      <div class="form-group" id="ca-dept-group"><label class="form-label">Département (obligatoire pour superviseur)</label><select class="form-control" id="ca-dept">${depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}</select></div>
+                      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="createAdmin()"><span class="material-symbols-outlined">person_add</span> Créer le compte</button>
+                    </div>
+                  </div>
+                </div>`;
       }
 
       function toggleDeptField() {
@@ -2780,7 +1851,6 @@
             ? document.getElementById("ca-dept").value
             : null;
         const msgEl = document.getElementById("create-admin-msg");
-
         if (!username || !password) {
           msgEl.innerHTML =
             '<div class="alert alert-error">Identifiant et mot de passe requis.</div>';
@@ -2791,7 +1861,6 @@
             '<div class="alert alert-error">Mot de passe trop court (min. 8 car.).</div>';
           return;
         }
-
         try {
           const res = await apiFetch("/auth/create-admin", {
             method: "POST",
@@ -2814,11 +1883,9 @@
         openModal(
           "Supprimer ce compte ?",
           `Êtes-vous sûr de vouloir supprimer le compte <strong style="color:#fff">${username}</strong> ?`,
-          `<button class="btn btn-danger" onclick="deleteAdmin('${id}')"><span class="material-symbols-outlined">delete_forever</span> Supprimer</button>
-     <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>`,
+          `<button class="btn btn-danger" onclick="deleteAdmin('${id}')"><span class="material-symbols-outlined">delete_forever</span> Supprimer</button><button class="btn btn-ghost" onclick="closeModal()">Annuler</button>`,
         );
       }
-
       async function deleteAdmin(id) {
         try {
           const res = await apiFetch(`/auth/admins/${id}`, {
@@ -2837,32 +1904,21 @@
         }
       }
 
+      // ── PASSWORD TAB ─────────────────────────────────────────────────────────
       function renderAdminPwd() {
         document.getElementById("admin-content").innerHTML = `
-    <div style="max-width:440px">
-      <div class="card">
-        <div class="card-header"><h3>Changer mon mot de passe</h3></div>
-        <div class="card-body">
-          <div id="pwd-msg"></div>
-          <div class="form-group">
-            <label class="form-label">Mot de passe actuel</label>
-            <input class="form-control" id="pwd-cur" type="password" placeholder="••••••••"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Nouveau mot de passe</label>
-            <input class="form-control" id="pwd-new" type="password" placeholder="••••••••"/>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Confirmer le nouveau mot de passe</label>
-            <input class="form-control" id="pwd-new2" type="password" placeholder="••••••••"/>
-          </div>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="changePwd()">
-            <span class="material-symbols-outlined">lock_reset</span> Mettre à jour
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
+                <div style="max-width:440px">
+                  <div class="card">
+                    <div class="card-header"><h3>Changer mon mot de passe</h3></div>
+                    <div class="card-body">
+                      <div id="pwd-msg"></div>
+                      <div class="form-group"><label class="form-label">Mot de passe actuel</label><input class="form-control" id="pwd-cur" type="password" placeholder="••••••••"/></div>
+                      <div class="form-group"><label class="form-label">Nouveau mot de passe</label><input class="form-control" id="pwd-new" type="password" placeholder="••••••••"/></div>
+                      <div class="form-group"><label class="form-label">Confirmer le nouveau mot de passe</label><input class="form-control" id="pwd-new2" type="password" placeholder="••••••••"/></div>
+                      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="changePwd()"><span class="material-symbols-outlined">lock_reset</span> Mettre à jour</button>
+                    </div>
+                  </div>
+                </div>`;
       }
 
       async function changePwd() {
@@ -2870,7 +1926,6 @@
         const new_password = document.getElementById("pwd-new").value;
         const confirm = document.getElementById("pwd-new2").value;
         const msgEl = document.getElementById("pwd-msg");
-
         if (new_password !== confirm) {
           msgEl.innerHTML =
             '<div class="alert alert-error">Les mots de passe ne correspondent pas.</div>';
@@ -2881,7 +1936,6 @@
             '<div class="alert alert-error">Mot de passe trop court (min. 8 car.).</div>';
           return;
         }
-
         try {
           const res = await apiFetch("/auth/change-password", {
             method: "POST",
@@ -2900,9 +1954,7 @@
         }
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // MODAL
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── MODAL ─────────────────────────────────────────────────────────────────
       function openModal(title, desc, actionsHTML) {
         document.getElementById("modal-title").textContent = title;
         document.getElementById("modal-desc").innerHTML = desc;
@@ -2910,7 +1962,6 @@
         document.getElementById("modal-body").innerHTML = "";
         document.getElementById("modal-overlay").classList.add("open");
       }
-
       function closeModal() {
         document.getElementById("modal-overlay").classList.remove("open");
       }
@@ -2921,9 +1972,7 @@
             closeModal();
         });
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // TOAST
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── TOAST ─────────────────────────────────────────────────────────────────
       function showToast(msg, type = "success") {
         const t = document.createElement("div");
         t.className = `toast toast-${type}`;
@@ -2938,16 +1987,12 @@
         }, 3500);
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // UTIL
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── UTIL ──────────────────────────────────────────────────────────────────
       function nextTick(fn) {
         requestAnimationFrame(() => requestAnimationFrame(fn));
       }
 
-      // ─────────────────────────────────────────────────────────────────────────────
-      // BOOT — restore session if available
-      // ─────────────────────────────────────────────────────────────────────────────
+      // ── BOOT ──────────────────────────────────────────────────────────────────
       (function boot() {
          // Empêche le retour arrière vers le dashboard après logout
           history.pushState(null, '', window.location.href);

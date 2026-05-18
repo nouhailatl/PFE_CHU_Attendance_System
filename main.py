@@ -62,12 +62,340 @@ from datetime import datetime, time, timezone, timedelta, date as date_type
 import uuid
 import subprocess
 import os
+from fastapi import Body
+from fastapi.responses import FileResponse
+import tempfile
+from apscheduler.schedulers.background import BackgroundScheduler
+from contextlib import asynccontextmanager
 
 from excel_export import export_to_excel
 import threading
 
 def export_in_background():
     threading.Thread(target=export_to_excel, daemon=True).start()
+
+
+# ── APSCHEDULER SETUP ──────────────────────────────────────────────────────────
+# Nightly workflow scheduler — runs Mon–Fri only
+
+scheduler = BackgroundScheduler()
+
+
+def _should_run_today() -> bool:
+    """Return True only if today is Mon–Fri (0=Mon, 6=Sun)."""
+    return now_local().weekday() < 5  # 0-4 = Mon-Fri
+
+
+def _auto_close_checkouts_for_date(target_date: date_type, db: Session) -> dict:
+    """
+    Auto-close unclosed checkins for an arbitrary target_date.
+    Used both by the live endpoint (today) and the catch-up pipeline (past dates).
+    """
+    day_start = datetime(target_date.year, target_date.month, target_date.day)
+    day_end   = day_start + timedelta(days=1)
+
+    unclosed = db.query(DailyStatus).filter(
+        DailyStatus.date >= day_start,
+        DailyStatus.date <  day_end,
+        DailyStatus.arrival_time   != None,   # noqa: E711
+        DailyStatus.departure_time == None,   # noqa: E711
+    ).all()
+
+    closed_count = 0
+    # Build a timezone-aware reference for CHECKOUT_CLOSE on target_date
+    close_dt = datetime(
+        target_date.year, target_date.month, target_date.day,
+        CHECKOUT_CLOSE.hour, CHECKOUT_CLOSE.minute, 0,
+        tzinfo=TZ,
+    )
+
+    for daily in unclosed:
+        arr_local      = to_local(daily.arrival_time)
+        credited_hours = round(
+            min((close_dt - arr_local).total_seconds() / 3600, STANDARD_WORK_HOURS),
+            2,
+        )
+        credited_hours = max(credited_hours, 0.0)
+
+        daily.departure_time  = to_utc_naive(close_dt)
+        daily.work_duration   = credited_hours
+        daily.checkout_status = "missed_checkout"
+        daily.needs_attention = True
+        if daily.status != "missed_checkin":
+            daily.status = "missed_checkout"
+
+        closed_count += 1
+
+    db.commit()
+    return {
+        "message": f"✅ {closed_count} checkout(s) fermé(s) pour {target_date}",
+        "date": str(target_date),
+        "count": closed_count,
+    }
+
+
+def _mark_absences_for_date(target_date: date_type, db: Session) -> dict:
+    """
+    Mark absent interns for an arbitrary target_date.
+    Used both by the live endpoint (today) and the catch-up pipeline (past dates).
+    """
+    day_start = datetime(target_date.year, target_date.month, target_date.day)
+    day_end   = day_start + timedelta(days=1)
+
+    scanned = {
+        row.intern_id
+        for row in db.query(DailyStatus.intern_id).filter(
+            DailyStatus.date >= day_start,
+            DailyStatus.date <  day_end,
+        ).all()
+    }
+
+    # Use noon on target_date as the stored timestamp (neutral, avoids timezone edge cases)
+    record_dt = datetime(
+        target_date.year, target_date.month, target_date.day, 12, 0, 0,
+        tzinfo=TZ,
+    )
+
+    absent_count = 0
+    for intern in db.query(Intern).all():
+        if intern.id not in scanned:
+            db.add(DailyStatus(
+                id=str(uuid.uuid4()),
+                intern_id=intern.id,
+                date=to_utc_naive(record_dt),
+                arrival_time=None,
+                departure_time=None,
+                status="absent",
+                checkin_status=None,
+                checkout_status=None,
+                work_duration=0.0,
+                needs_attention=True,
+            ))
+            absent_count += 1
+
+    db.commit()
+    return {
+        "message": f"✅ {absent_count} stagiaire(s) absent(s) pour {target_date}",
+        "date": str(target_date),
+        "count": absent_count,
+    }
+
+
+def _run_auto_close_job():
+    """Scheduled job: Auto-close forgotten checkouts at 23:00 on weekdays."""
+    if not _should_run_today():
+        return
+    db = SessionLocal()
+    try:
+        today = now_local().date()
+        _auto_close_checkouts_for_date(today, db)
+    finally:
+        db.close()
+
+
+def _run_mark_absences_job():
+    """Scheduled job: Mark absent interns at 23:05 on weekdays."""
+    if not _should_run_today():
+        return
+    db = SessionLocal()
+    try:
+        today = now_local().date()
+        _mark_absences_for_date(today, db)
+    finally:
+        db.close()
+
+
+def _run_etl_ml_job():
+    """Scheduled job: Run ETL + ML retraining at 23:30 on weekdays. Records run date."""
+    if not _should_run_today():
+        return
+    # ── ETL ───────────────────────────────────────────────────────────
+    try:
+        etl_result = subprocess.run(
+            ["python", "etl/transform.py"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if etl_result.returncode != 0:
+            print(f"⚠️  ETL error: {etl_result.stderr}")
+    except Exception as e:
+        print(f"❌ ETL job failed: {e}")
+
+    # ── ML retrain ────────────────────────────────────────────────────
+    ml_script = os.path.join("ml", "train.py")
+    if os.path.exists(ml_script):
+        try:
+            ml_result = subprocess.run(
+                ["python", ml_script],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if ml_result.returncode != 0:
+                print(f"⚠️  ML training error: {ml_result.stderr}")
+        except Exception as e:
+            print(f"❌ ML training job failed: {e}")
+
+    # ── Record that the pipeline ran today ────────────────────────────
+    _write_last_pipeline_run(now_local().date())
+    print(f"✅ Nightly pipeline completed and recorded for {now_local().date()}")
+
+
+# ── PIPELINE LAST-RUN TRACKER ─────────────────────────────────────────────────
+# We store the last date the nightly pipeline ran in a small file next to
+# main.py. This survives server restarts and is much simpler than a DB table.
+
+PIPELINE_LAST_RUN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pipeline_last_run")
+
+
+def _read_last_pipeline_run() -> date_type | None:
+    """Return the date stored in .pipeline_last_run, or None if not found."""
+    try:
+        with open(PIPELINE_LAST_RUN_FILE, "r") as f:
+            return date_type.fromisoformat(f.read().strip())
+    except Exception:
+        return None
+
+
+def _write_last_pipeline_run(d: date_type):
+    """Persist the pipeline run date to disk."""
+    try:
+        with open(PIPELINE_LAST_RUN_FILE, "w") as f:
+            f.write(str(d))
+    except Exception as e:
+        print(f"⚠️  Could not write pipeline last-run file: {e}")
+
+
+def _get_last_working_day(reference: date_type) -> date_type:
+    """
+    Return the most recent weekday strictly before `reference`.
+    Monday → previous Friday (skips Saturday and Sunday).
+    """
+    day = reference - timedelta(days=1)
+    while day.weekday() >= 5:   # 5=Sat, 6=Sun
+        day -= timedelta(days=1)
+    return day
+
+
+def _run_pipeline_for_date(target_date: date_type, db: Session) -> dict:
+    """
+    Run steps 1 and 2 of the nightly pipeline (close checkouts + mark absences)
+    for an arbitrary past date, then run ETL + ML retraining.
+    Steps 1 & 2 are date-aware; steps 3 & 4 always operate on the full dataset.
+    """
+    results = {}
+
+    # Step 1: Auto-close forgotten checkouts for target_date
+    try:
+        results["step1_auto_close"] = _auto_close_checkouts_for_date(target_date, db)
+    except Exception as e:
+        results["step1_auto_close"] = {"error": str(e)}
+
+    # Step 2: Mark absent interns for target_date
+    try:
+        results["step2_mark_absences"] = _mark_absences_for_date(target_date, db)
+    except Exception as e:
+        results["step2_mark_absences"] = {"error": str(e)}
+
+    # Step 3: ETL
+    try:
+        etl_result = subprocess.run(
+            ["python", "etl/transform.py"],
+            capture_output=True, text=True, timeout=120,
+        )
+        results["step3_etl"] = {
+            "returncode": etl_result.returncode,
+            "stdout": etl_result.stdout[-500:] if etl_result.stdout else "",
+            "stderr": etl_result.stderr[-300:] if etl_result.stderr else "",
+        }
+    except Exception as e:
+        results["step3_etl"] = {"error": str(e)}
+
+    # Step 4: ML retrain
+    ml_script = os.path.join("ml", "train.py")
+    if os.path.exists(ml_script):
+        try:
+            ml_result = subprocess.run(
+                ["python", ml_script],
+                capture_output=True, text=True, timeout=120,
+            )
+            results["step4_ml_retrain"] = {
+                "returncode": ml_result.returncode,
+                "stdout": ml_result.stdout[-500:] if ml_result.stdout else "",
+                "stderr": ml_result.stderr[-300:] if ml_result.stderr else "",
+            }
+        except Exception as e:
+            results["step4_ml_retrain"] = {"error": str(e)}
+    else:
+        results["step4_ml_retrain"] = {
+            "skipped": True,
+            "reason": "ml/train.py not found yet — will run once ML module is added",
+        }
+
+    return results
+
+
+def _check_and_run_missed_pipeline(db: Session):
+    """
+    On server startup, check whether the nightly pipeline ran for the last
+    working day. If it didn't (server was down overnight), run it now so no
+    day is ever skipped.
+
+    Logic:
+      - Read the last pipeline run date from .pipeline_last_run.
+      - Compute the last weekday before today.
+      - If last_run < last_working_day → pipeline was missed → run it for
+        last_working_day and record the date.
+      - If already up-to-date → do nothing.
+    """
+    today            = now_local().date()
+    last_working_day = _get_last_working_day(today)
+    last_run         = _read_last_pipeline_run()
+
+    # Nothing to catch up if we already ran for the last working day (or later)
+    if last_run is not None and last_run >= last_working_day:
+        print(f"✅ Pipeline up-to-date (last run: {last_run}, last working day: {last_working_day})")
+        return False
+
+    # Also skip on weekends when there are literally no working days to catch up
+    # (e.g. server restarted on a Saturday morning right after Friday's pipeline ran)
+    if last_run == last_working_day:
+        print(f"✅ Pipeline already ran for {last_working_day}")
+        return False
+
+    print(f"🔄 CATCH-UP: Pipeline missed for {last_working_day} — running now...")
+    try:
+        results = _run_pipeline_for_date(last_working_day, db)
+        _write_last_pipeline_run(last_working_day)
+        print(f"✅ CATCH-UP: Pipeline completed for {last_working_day}. Results: {results}")
+        return True
+    except Exception as e:
+        print(f"❌ CATCH-UP: Pipeline failed for {last_working_day}: {e}")
+        return False
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan: start scheduler on startup, stop on shutdown."""
+    # ── Startup ───────────────────────────────────────────────────────
+    scheduler.add_job(_run_auto_close_job, "cron", hour=23, minute=0, id="auto_close")
+    scheduler.add_job(_run_mark_absences_job, "cron", hour=23, minute=5, id="mark_absences")
+    scheduler.add_job(_run_etl_ml_job, "cron", hour=23, minute=30, id="etl_ml")
+    scheduler.start()
+    print("✅ APScheduler started — nightly jobs scheduled for 23:00, 23:05, 23:30")
+
+    # ── CATCH-UP: Check if nightly pipeline was missed ────────────────
+    db = SessionLocal()
+    try:
+        _check_and_run_missed_pipeline(db)
+    finally:
+        db.close()
+
+    yield
+    # ── Shutdown ──────────────────────────────────────────────────────
+    scheduler.shutdown(wait=True)
+    print("✅ APScheduler stopped")
 
 # ── TIMEZONE ──────────────────────────────────────────────────────────────────
 # Morocco has been permanently on UTC+1 since October 2018 (no DST).
@@ -221,7 +549,7 @@ class InternCreate(BaseModel):
 
 # ── APP SETUP ─────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="CHU Plateforme de Pointage")
+app = FastAPI(title="CHU Plateforme de Pointage", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="."), name="static")
 
 app.add_middleware(
@@ -355,117 +683,113 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
 def auto_close_checkouts(db: Session = Depends(get_db)):
     """
     Auto-close any intern who checked in today but never checked out.
-
-    Called nightly (e.g. cron at 23:00) BEFORE mark-absences.
-
-    Work duration logic:
-      - We credit the intern up to CHECKOUT_CLOSE (17:00), not up to now.
-        This is fairer — they should not be penalised for a system-level close.
-      - We then cap the result at STANDARD_WORK_HOURS (8h) so a very early
-        arrival doesn't inflate the figure.
-      - Formula: min(CHECKOUT_CLOSE - arrival_time_local, STANDARD_WORK_HOURS)
-
-    Status logic:
-      - checkout_status  → always "missed_checkout"
-      - status           → "missed_checkout" UNLESS already "missed_checkin"
-                           (we never downgrade a worse existing status)
-      - needs_attention  → always True
+    Delegates to the date-aware helper using today's date.
     """
-    now   = now_local()
-    today = now.date()
+    return _auto_close_checkouts_for_date(now_local().date(), db)
 
-    unclosed = get_unclosed_checkins(today, db)
-    closed_count = 0
-
-    for daily in unclosed:
-        arr_local = to_local(daily.arrival_time)
-
-        # Credit hours up to CHECKOUT_CLOSE (17:00), capped at STANDARD_WORK_HOURS
-        checkout_close_dt = now.replace(
-            hour=CHECKOUT_CLOSE.hour,
-            minute=CHECKOUT_CLOSE.minute,
-            second=0,
-            microsecond=0,
-        )
-        credited_hours = round(
-            min(
-                (checkout_close_dt - arr_local).total_seconds() / 3600,
-                STANDARD_WORK_HOURS,
-            ),
-            2,
-        )
-        # Guard against negative duration (e.g. very late missed_checkin arrivals)
-        credited_hours = max(credited_hours, 0.0)
-
-        # Set a virtual departure time of CHECKOUT_CLOSE for record-keeping
-        virtual_departure = now.replace(
-            hour=CHECKOUT_CLOSE.hour,
-            minute=CHECKOUT_CLOSE.minute,
-            second=0,
-            microsecond=0,
-        )
-
-        daily.departure_time  = to_utc_naive(virtual_departure)
-        daily.work_duration   = credited_hours
-        daily.checkout_status = "missed_checkout"
-        daily.needs_attention = True
-
-        # Never overwrite a worse checkin status with missed_checkout
-        if daily.status != "missed_checkin":
-            daily.status = "missed_checkout"
-
-        closed_count += 1
-
+# ── DEPARTMENT MANAGEMENT ─────────────────────────────────────────────────────
+ 
+from fastapi import Body
+from fastapi.responses import FileResponse
+import tempfile
+ 
+ 
+@app.post("/departments", tags=["Administration"])
+def create_department(
+    name: str = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin),
+):
+    """Create a new department (super_admin only)."""
+    existing = db.query(Department).filter(Department.name == name.strip()).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Le département '{name}' existe déjà.")
+    dept = Department(id=str(uuid.uuid4()), name=name.strip())
+    db.add(dept)
     db.commit()
+    db.refresh(dept)
+    return {"id": dept.id, "name": dept.name}
+ 
+ 
+@app.delete("/departments/{dept_id}", tags=["Administration"])
+def delete_department(
+    dept_id: str,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin),
+):
+    """Delete a department — blocked if interns are still assigned to it."""
+    dept = db.query(Department).filter(Department.id == dept_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Département introuvable.")
+    linked = db.query(Intern).filter(Intern.department_id == dept_id).count()
+    if linked > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Impossible de supprimer : {linked} stagiaire(s) sont encore assignés à ce département.",
+        )
+    db.delete(dept)
+    db.commit()
+    return {"message": f"Département '{dept.name}' supprimé."}
+ 
+ 
+# ── EXCEL EXPORT ──────────────────────────────────────────────────────────────
+ 
+@app.get("/export/excel", tags=["Export"])
+def export_excel(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin),
+):
+    """
+    Generate and return the Excel report.
+    Super-admins get the full file; supervisors get their department only.
+    """
+    from excel_export import export_to_excel
+    import shutil
 
-    return {
-        "message": f"✅ {closed_count} checkout(s) automatiquement fermé(s) pour {today}",
-        "date":    str(today),
-        "count":   closed_count,
-        "note":    (
-            f"Durée créditée = min(heures jusqu'à {CHECKOUT_CLOSE.strftime('%H:%M')}, "
-            f"{STANDARD_WORK_HOURS}h) par stagiaire"
-        ),
-    }
+    dept_id = None if admin.role == "super_admin" else admin.department_id
 
+    # Write to a named temp file that persists until the OS cleans it up.
+    # We must NOT use TemporaryDirectory here — it deletes the file before
+    # FileResponse can stream it, which caused the "fail to fetch" error.
+    fd, stable_path = tempfile.mkstemp(suffix=".xlsx", prefix="CHU_Pointages_")
+    os.close(fd)  # close the raw file descriptor; export_to_excel opens it itself
+
+    try:
+        export_to_excel(path=stable_path, department_id=dept_id)
+    except Exception as e:
+        os.unlink(stable_path)
+        raise HTTPException(status_code=500, detail=f"Erreur génération Excel : {e}")
+
+    return FileResponse(
+        stable_path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="CHU_Pointages.xlsx",
+        background=None,  # FileResponse will stream then the OS temp cleaner handles it
+    )
+ 
 
 # ── /admin/mark-absences ──────────────────────────────────────────────────────
 
 def _mark_absences_logic(db: Session) -> dict:
-    """Core absence-marking logic, callable without auth."""
-    now   = now_local()
-    today = now.date()
-    scanned_today = {
-        row.intern_id
-        for row in db.query(DailyStatus.intern_id).filter(
-            DailyStatus.date >= datetime(today.year, today.month, today.day),
-            DailyStatus.date <  datetime(today.year, today.month, today.day) + timedelta(days=1),
-        ).all()
-    }
-    all_interns  = db.query(Intern).all()
-    absent_count = 0
-    for intern in all_interns:
-        if intern.id not in scanned_today:
-            db.add(DailyStatus(
-                id=str(uuid.uuid4()),
-                intern_id=intern.id,
-                date=to_utc_naive(now),
-                arrival_time=None,
-                departure_time=None,
-                status="absent",
-                checkin_status=None,
-                checkout_status=None,
-                work_duration=0.0,
-                needs_attention=True,
-            ))
-            absent_count += 1
-    db.commit()
-    return {"message": f"✅ {absent_count} stagiaire(s) marqué(s) absent(s) pour {today}",
-            "date": str(today), "count": absent_count}
+    """Core absence-marking logic for today. Delegates to the date-aware helper."""
+    return _mark_absences_for_date(now_local().date(), db)
 
 @app.post("/admin/mark-absences", tags=["Administration"])
 def mark_absences(db: Session = Depends(get_db), admin: Admin = Depends(get_current_admin)):
     return _mark_absences_logic(db)
+
+@app.delete("/admin/undo-absences", tags=["Administration"])
+def undo_absences(db: Session = Depends(get_db), admin: Admin = Depends(require_super_admin)):
+    """Delete all 'absent' DailyStatus rows created today (undo accidental mark-absences)."""
+    now   = now_local()
+    today = now.date()
+    deleted = db.query(DailyStatus).filter(
+        DailyStatus.date >= datetime(today.year, today.month, today.day),
+        DailyStatus.date <  datetime(today.year, today.month, today.day) + timedelta(days=1),
+        DailyStatus.status == "absent",
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"message": f"✅ {deleted} absence(s) supprimée(s) pour aujourd'hui ({today})", "count": deleted}
 
 # ── /admin/run-nightly-pipeline ───────────────────────────────────────────────
 
@@ -483,60 +807,9 @@ def run_nightly_pipeline(db: Session = Depends(get_db)):
 
     Or call manually from the admin dashboard during development.
     """
-    results = {}
-
-    # ── Step 1: Auto-close checkouts ─────────────────────────────────────
-    try:
-        step1 = auto_close_checkouts(db)
-        results["step1_auto_close"] = step1
-    except Exception as e:
-        results["step1_auto_close"] = {"error": str(e)}
-
-    # ── Step 2: Mark absences ─────────────────────────────────────────────
-    try:
-        step2 = mark_absences(db)
-        results["step2_mark_absences"] = step2
-    except Exception as e:
-        results["step2_mark_absences"] = {"error": str(e)}
-
-    # ── Step 3: ETL ───────────────────────────────────────────────────────
-    try:
-        etl_result = subprocess.run(
-            ["python", "etl/transform.py"],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        results["step3_etl"] = {
-            "returncode": etl_result.returncode,
-            "stdout":     etl_result.stdout[-500:] if etl_result.stdout else "",
-            "stderr":     etl_result.stderr[-300:] if etl_result.stderr else "",
-        }
-    except Exception as e:
-        results["step3_etl"] = {"error": str(e)}
-
-    # ── Step 4: ML retrain ────────────────────────────────────────────────
-    ml_script = os.path.join("ml", "train.py")
-    if os.path.exists(ml_script):
-        try:
-            ml_result = subprocess.run(
-                ["python", ml_script],
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-            results["step4_ml_retrain"] = {
-                "returncode": ml_result.returncode,
-                "stdout":     ml_result.stdout[-500:] if ml_result.stdout else "",
-                "stderr":     ml_result.stderr[-300:] if ml_result.stderr else "",
-            }
-        except Exception as e:
-            results["step4_ml_retrain"] = {"error": str(e)}
-    else:
-        results["step4_ml_retrain"] = {
-            "skipped": True,
-            "reason":  "ml/train.py not found yet — will run once ML module is added",
-        }
+    today   = now_local().date()
+    results = _run_pipeline_for_date(today, db)
+    _write_last_pipeline_run(today)
 
     return {
         "message": "✅ Pipeline nightly terminé",
@@ -630,6 +903,39 @@ def get_ml_predictions(db: Session = Depends(get_db)):
 
 # ── OTHER ROUTES ──────────────────────────────────────────────────────────────
 
+@app.get("/admin/scheduler-status", tags=["Administration"])
+def get_scheduler_status():
+    """
+    Check APScheduler status and next scheduled job times.
+    Useful for verifying the nightly automation is set up correctly.
+    """
+    if not scheduler.running:
+        return {
+            "status": "❌ SCHEDULER STOPPED",
+            "message": "APScheduler is not running. Restart the app.",
+            "jobs": [],
+        }
+    
+    jobs_info = []
+    for job in scheduler.get_jobs():
+        next_run = job.next_run_time
+        next_run_local = to_local(next_run) if next_run else None
+        jobs_info.append({
+            "id": job.id,
+            "name": job.func.__name__,
+            "schedule": str(job.trigger),
+            "next_run": next_run_local.isoformat() if next_run_local else "Not scheduled",
+            "status": "🟢 Active",
+        })
+    
+    return {
+        "status": "🟢 SCHEDULER RUNNING",
+        "message": f"{len(jobs_info)} jobs scheduled and active (Mon–Fri only)",
+        "current_time": now_local().isoformat(),
+        "jobs": jobs_info,
+    }
+
+
 @app.get("/interns")
 def list_interns(db: Session = Depends(get_db)):
     return db.query(Intern).all()
@@ -685,6 +991,72 @@ def delete_intern(
     db.delete(intern)
     db.commit()
     return {"message": f"Stagiaire {intern.first_name} supprimé"}
+
+
+class InternUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    department_id: str | None = None
+
+
+@app.patch("/interns/{intern_id}", tags=["Administration"])
+def update_intern(
+    intern_id: str,
+    payload: InternUpdate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin),
+):
+    """Update an intern's name and/or department."""
+    intern = db.query(Intern).filter(Intern.id == intern_id).first()
+    if not intern:
+        raise HTTPException(status_code=404, detail="Stagiaire non trouvé")
+    if payload.first_name is not None:
+        intern.first_name = payload.first_name.strip()
+    if payload.last_name is not None:
+        intern.last_name = payload.last_name.strip()
+    if payload.department_id is not None:
+        dept = db.query(Department).filter(Department.id == payload.department_id).first()
+        if not dept:
+            raise HTTPException(status_code=404, detail="Département introuvable")
+        intern.department_id = payload.department_id
+    db.commit()
+    db.refresh(intern)
+    return {
+        "message": f"Stagiaire mis à jour",
+        "id": intern.id,
+        "first_name": intern.first_name,
+        "last_name": intern.last_name,
+        "department_id": intern.department_id,
+    }
+
+
+class DepartmentUpdate(BaseModel):
+    name: str
+
+
+@app.patch("/departments/{dept_id}", tags=["Administration"])
+def update_department(
+    dept_id: str,
+    payload: DepartmentUpdate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin),
+):
+    """Rename a department."""
+    dept = db.query(Department).filter(Department.id == dept_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Département introuvable")
+    new_name = payload.name.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Le nom ne peut pas être vide")
+    conflict = db.query(Department).filter(
+        Department.name == new_name, Department.id != dept_id
+    ).first()
+    if conflict:
+        raise HTTPException(status_code=409, detail=f"Un département nommé '{new_name}' existe déjà")
+    dept.name = new_name
+    db.commit()
+    db.refresh(dept)
+    return {"message": f"Département renommé en '{new_name}'", "id": dept.id, "name": dept.name}
 
 
 # ── AUTH ENDPOINTS ────────────────────────────────────────────────────────────
