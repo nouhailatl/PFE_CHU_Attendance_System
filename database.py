@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey, Float, Boolean
+from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey, Float, Boolean, Integer
 from sqlalchemy.orm import declarative_base, sessionmaker
 import uuid
 from datetime import datetime
@@ -26,8 +26,10 @@ is_postgres = DATABASE_URL.startswith("postgresql")
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
-    pool_recycle=300,
-    connect_args={"options": "-c timezone=UTC"} if is_postgres else {}
+    pool_recycle=60,        # ← était 300, mettre 60
+    pool_size=1,            # ← ajouter
+    max_overflow=0,         # ← ajouter
+    connect_args={"connect_timeout": 10, "options": "-c timezone=UTC"} if is_postgres else {}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -48,6 +50,9 @@ class Intern(Base):
     first_name = Column(String)
     last_name = Column(String)
     department_id = Column(String, ForeignKey("departments.id"))
+    cne    = Column(String, nullable=True)
+    annee  = Column(Integer, nullable=True)
+    groupe = Column(String, nullable=True)
 
 
 class AttendanceEvent(Base):

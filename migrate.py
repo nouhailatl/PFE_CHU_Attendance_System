@@ -12,6 +12,15 @@ What it does:
 
 Safe to re-run: every operation is guarded by IF NOT EXISTS or a
 column-existence check.
+
+Nouveautés v2 :
+  • Table  'rotations'        — périodes de stage par service
+  • Colonne interns.cne       — N° APOGEE (identifiant universitaire)
+  • Colonne interns.annee     — année d'études (3, 4, 5 ou 6)
+  • Colonne interns.groupe    — groupe de TD (G1, G2, G3…)
+ 
+Safe to re-run : chaque opération est gardée par IF NOT EXISTS ou
+ADD COLUMN IF NOT EXISTS (PostgreSQL ≥ 9.6 / Neon).
 """
 from dotenv import load_dotenv
 load_dotenv()
@@ -23,6 +32,59 @@ from database import engine
 # which SQLAlchemy's create_all() does NOT provide for columns.
 
 MIGRATIONS = [
+
+
+    
+    # ── Colonnes supplémentaires sur interns ──────────────────────────────────
+    """
+    ALTER TABLE interns
+        ADD COLUMN IF NOT EXISTS cne VARCHAR
+    """,
+    """
+    ALTER TABLE interns
+        ADD COLUMN IF NOT EXISTS annee INTEGER
+    """,
+    """
+    ALTER TABLE interns
+        ADD COLUMN IF NOT EXISTS groupe VARCHAR
+    """,
+ 
+    # ── Index sur cne pour les lookups rapides à l'import ─────────────────────
+    """
+    CREATE INDEX IF NOT EXISTS ix_interns_cne
+        ON interns (cne)
+    """,
+ 
+    # ── Table rotations ───────────────────────────────────────────────────────
+    # Un étudiant peut passer par plusieurs services (rotations successives).
+    # Chaque ligne = un passage dans un service pour une période donnée.
+    # Le scanner lit cette table pour savoir dans quel service pointer le scan.
+    """
+    CREATE TABLE IF NOT EXISTS rotations (
+        id             VARCHAR PRIMARY KEY,
+        intern_id      VARCHAR NOT NULL REFERENCES interns(id) ON DELETE CASCADE,
+        department_id  VARCHAR NOT NULL REFERENCES departments(id),
+        periode_num    INTEGER NOT NULL,
+        date_debut     DATE    NOT NULL,
+        date_fin       DATE    NOT NULL,
+        annee_univ     VARCHAR DEFAULT '2025-2026',
+        created_at     TIMESTAMP DEFAULT now(),
+        UNIQUE (intern_id, department_id, periode_num, annee_univ)
+    )
+    """,
+ 
+    # ── Index pour le scanner (lookup par intern_id + date du jour) ───────────
+    """
+    CREATE INDEX IF NOT EXISTS ix_rotations_intern_date
+        ON rotations (intern_id, date_debut, date_fin)
+    """,
+ 
+    # ── Index pour la vue planning (lookup par department_id + période) ───────
+    """
+    CREATE INDEX IF NOT EXISTS ix_rotations_dept_periode
+        ON rotations (department_id, periode_num)
+    """,
+ 
 
     # ── 1. ml_predictions table ───────────────────────────────────────────────
     """
