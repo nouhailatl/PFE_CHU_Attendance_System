@@ -8,7 +8,7 @@ db = SessionLocal()
 
 comptes = [
     {"username": "secretaire_1",  "password": "Secr3taire!", "role": "secretaire",  "department_id": None},
-    {"username": "chef_cardio",   "password": "ChefC4rdio!", "role": "supervisor",  "department_id": "UUID_CARDIO"},
+    {"username": "chef_cardio",   "password": "ChefC4rdio!", "role": "supervisor",  "department_id": "4a1cc5d7-81fb-4bdd-8245-268da720000b"},
     {"username": "directeur",     "password": "Dir3cteur!",  "role": "directeur",   "department_id": None},
 ]
 
