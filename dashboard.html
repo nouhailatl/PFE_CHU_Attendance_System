@@ -250,12 +250,14 @@
       let DATA = {};
       let CHARTS = {};
       let SELECTED_INTERN = null;
+      let TOKEN_CHECK_INTERVAL = null;
+      let IS_DATA_LOADING = false;
 
       // ── NAV ─────────────────────────────────────────────────────────────────
       const NAV_ALL = [
         { id: "global", label: "Vue Globale", icon: "dashboard", roles: ["dfri", "directeur", "secretaire"] },
         { id: "individual", label: "Vue Individuelle", icon: "person_search", roles: ["dfri", "directeur", "chef_service", "secretaire"] },
-        { id: "department", label: "Vue Départementale", icon: "corporate_fare", roles: ["dfri", "directeur", "chef_service"] },
+        { id: "department", label: "Vue des Services", icon: "corporate_fare", roles: ["dfri", "directeur", "chef_service"] },
         { id: "clusters", label: "Clusters & ML", icon: "hub", roles: ["dfri"] },
         { id: "alerts", label: "Journal des Alertes", icon: "notifications_active", roles: ["dfri", "directeur", "chef_service", "secretaire"] },
         { id: "admin", label: "Administration", icon: "manage_accounts", roles: ["dfri", "chef_service"] },
@@ -307,20 +309,89 @@
         el.textContent = "⚠ " + msg;
         el.classList.add("visible");
       }
-      function doLogout() {
+      let popstateHandlerRegistered = false;
+      function doLogout(reason = "") {
+        if (TOKEN_CHECK_INTERVAL) {
+          clearInterval(TOKEN_CHECK_INTERVAL);
+          TOKEN_CHECK_INTERVAL = null;
+        }
+        
         AUTH = null;
         DATA = {};
-        sessionStorage.removeItem("chu_auth");
+        CURRENT_VIEW = null;
+        CHARTS = {};
+        SELECTED_INTERN = null;
+        IS_DATA_LOADING = false;
+        
+        sessionStorage.clear();
+        localStorage.removeItem("chu_last_view");
+        
+        destroyCharts();
+        
+        const viewContainer = document.getElementById("view-container");
+        if (viewContainer) viewContainer.innerHTML = "";
+        
+        document.getElementById("inp-password").value = "";
+        document.getElementById("inp-username").value = "";
+        document.getElementById("login-error").textContent = "";
+        
         document.getElementById("app").classList.remove("visible");
         document.getElementById("login-overlay").classList.remove("hidden");
-        document.getElementById("inp-password").value = "";
-         // Empêche le retour arrière vers le dashboard
-        history.pushState(null, '', window.location.href);
-        window.addEventListener('popstate', function() {
+        
+        if (reason) {
+          showLoginError(reason);
+        }
+        
+        if (!popstateHandlerRegistered) {
+          history.pushState(null, '', window.location.href);
+          window.addEventListener('popstate', function() {
             history.pushState(null, '', window.location.href);
-        });
+          });
+          popstateHandlerRegistered = true;
+        }
+      }
+
+      function parseJWT(token) {
+        try {
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(
+            atob(base64)
+              .split('')
+              .map((c) => '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2))
+              .join(''),
+          );
+          return JSON.parse(jsonPayload);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function startTokenExpirationCheck() {
+        if (!AUTH || !AUTH.access_token) return;
+        if (TOKEN_CHECK_INTERVAL) clearInterval(TOKEN_CHECK_INTERVAL);
+
+        TOKEN_CHECK_INTERVAL = setInterval(() => {
+          if (!AUTH || !AUTH.access_token) return;
+          const decoded = parseJWT(AUTH.access_token);
+          if (!decoded || !decoded.exp) return;
+
+          const now = Math.floor(Date.now() / 1000);
+          const secsUntilExpire = decoded.exp - now;
+          if (secsUntilExpire <= 0) {
+            doLogout("Votre session a expiré. Veuillez vous reconnecter.");
+            return;
+          }
+          if (secsUntilExpire <= 300) {
+            const mins = Math.ceil(secsUntilExpire / 60);
+            showToast(`Votre session expire dans ${mins} minute${mins > 1 ? 's' : ''}.`, "warning");
+          }
+        }, 60000);
       }
       function authHeaders() {
+        if (!AUTH || !AUTH.access_token) {
+          return { "Content-Type": "application/json" };
+        }
         return {
           Authorization: `Bearer ${AUTH.access_token}`,
           "Content-Type": "application/json",
@@ -367,6 +438,7 @@
       }
 
       async function loadData() {
+        IS_DATA_LOADING = true;
         try {
           const [intRes, attRes, dlyRes] = await Promise.all([
             apiFetch("/interns"),
@@ -403,6 +475,9 @@
           updateAlertBell();
         } catch (e) {
           showToast("Erreur chargement données: " + e.message, "error");
+          doLogout("Erreur de chargement des données. Vous avez été déconnecté.");
+        } finally {
+          IS_DATA_LOADING = false;
         }
       }
 
@@ -429,7 +504,7 @@
         switchView(CURRENT_VIEW);
         btn.classList.remove("spinning");
         btn.disabled = false;
-        showToast("Données actualisées ✅", "success");
+        showToast("Données actualisées", "success");
       }
 
       function toggleFullscreen() {
@@ -452,6 +527,16 @@
 
       // ── INIT ─────────────────────────────────────────────────────────────────
       async function initApp() {
+        CURRENT_VIEW = null;
+        CHARTS = {};
+        SELECTED_INTERN = null;
+        destroyCharts();
+        
+        const vc = document.getElementById("view-container");
+        if (vc) {
+          vc.innerHTML = '<div style="padding:20px; text-align:center;"><p>Chargement des données...</p></div>';
+        }
+        
         document.getElementById("user-name").textContent = AUTH.username;
         document.getElementById("user-avatar").textContent =
           AUTH.username[0].toUpperCase();
@@ -460,7 +545,10 @@
         updateClock();
         setInterval(updateClock, 1000);
         applyRolePermissions();
+
+        startTokenExpirationCheck();
         await loadData();
+        if (!AUTH) return;
         switchView("global");
       }
 
@@ -515,7 +603,7 @@
         const titles = {
           global: "Vue Globale",
           individual: "Vue Individuelle",
-          department: "Vue Départementale",
+          department: "Vue des Services",
           clusters: "Clusters & ML",
           alerts: "Journal des Alertes",
           admin: "Administration",
@@ -572,7 +660,7 @@
           <div class="card" style="margin-top: 16px;">
             <div class="card-header">
               <div>
-                <h3>📥 Importation des Stagiaires par Fichier</h3>
+                <h3>Importation des Stagiaires par Fichier</h3>
                 <p>Ajoutez massivement des stagiaires via un fichier Excel (.xlsx, .xls) ou un fichier CSV.</p>
               </div>
             </div>
@@ -638,13 +726,13 @@
             a.download = "Template_Import_Stagiaires.xlsx";
             a.click();
             URL.revokeObjectURL(url);
-            showToast("Template téléchargé depuis le serveur ✅", "success");
+            showToast("Template téléchargé depuis le serveur", "success");
           } else {
             throw new Error("Template non configuré sur le backend");
           }
         } catch (e) {
           // Fallback client-side : Génération automatique d'un CSV structurel
-          const csvContent = "data:text/csv;charset=utf-8,prenom,nom,departement\nJean,Dupont,Urgences\nMarie,Curie,Pédiatrie\n";
+          const csvContent = "data:text/csv;charset=utf-8,prenom,nom,service\nJean,Dupont,Urgences\nMarie,Curie,Pédiatrie\n";
           const encodedUri = encodeURI(csvContent);
           const a = document.createElement("a");
           a.href = encodedUri;
@@ -730,10 +818,10 @@
           const headers = lines[0].toLowerCase().split(/[;,]/).map(h => h.trim());
           const idxPrenom = headers.indexOf("prenom");
           const idxNom = headers.indexOf("nom");
-          const idxDept = headers.indexOf("departement");
+          const idxDept = headers.indexOf("service") >= 0 ? headers.indexOf("service") : headers.indexOf("departement");
 
           if (idxPrenom === -1 || idxNom === -1 || idxDept === -1) {
-            renderValidationReport(0, 1, [{ row: 1, message: "Colonnes obligatoires manquantes. Attendu : 'prenom', 'nom', 'departement'." }], []);
+            renderValidationReport(0, 1, [{ row: 1, message: "Colonnes obligatoires manquantes. Attendu : 'prenom', 'nom', 'service'." }], []);
             return;
           }
 
@@ -753,7 +841,7 @@
             if (!pValue) errors.push("Prénom vide");
             if (!nValue) errors.push("Nom de famille vide");
             if (!dValue) {
-              errors.push("Département / Service vide");
+              errors.push("Service vide");
             } else if (!existingDepts.includes(dValue.toLowerCase())) {
               errors.push(`Le service '${dValue}' n'existe pas dans le référentiel hospitalier`);
             }
@@ -874,7 +962,7 @@
         CLIENT_SIDE_PARSED_ROWS = null;
         document.getElementById("import-file-input").value = "";
         document.getElementById("import-preview-zone").classList.add("hidden");
-        showToast("Importation annulée par l'administrateur ❌", "info");
+        showToast("Importation annulée par l'administrateur", "info");
       }
 
       // ── EXÉCUTION DE L'IMPORTATION FINALE ET ENVOI PAR LOTS ──────────────────
@@ -914,7 +1002,7 @@
             progressPercent.textContent = "100%";
             progressStatus.textContent = "Importation réussie !";
             
-            showToast(`Réussite : ${result.created_count || 'Stagiaires'} comptes créés avec succès ! ✅`, "success");
+            showToast(`Réussite : ${result.created_count || 'Stagiaires'} comptes créés avec succès`, "success");
             setTimeout(() => finishImportSession(), 1500);
           } else {
             throw new Error("Batch route indisponible, déclenchement du traitement par lot unitaire");
@@ -1131,7 +1219,7 @@
           doc.text("UUID: " + internId, 42.5, 114, { align: "center" });
 
           doc.save(`badge_${fullName.replace(/\s+/g, "_")}.pdf`);
-          showToast(`Badge de ${fullName} téléchargé ✅`, "success");
+          showToast(`Badge de ${fullName} téléchargé`, "success");
         }, 400);
       }
 
@@ -1154,7 +1242,7 @@
           a.download = "CHU_Pointages.xlsx";
           a.click();
           URL.revokeObjectURL(url);
-          showToast("Fichier Excel téléchargé ✅", "success");
+          showToast("Fichier Excel téléchargé", "success");
         } catch (e) {
           showToast("Export Excel : " + e.message, "error");
         } finally {
@@ -1169,7 +1257,7 @@
         let interns = DATA.interns || [];
         let history = DATA.history || [];
         
-        // Chef de Service voit seulement son département
+        // Chef de Service voit seulement son service
         if (isChefService()) {
           interns = interns.filter((i) => i.department_id === AUTH.department_id);
           const internIds = interns.map((i) => i.id);
@@ -1674,7 +1762,7 @@
       // ── VUE DÉPARTEMENTALE ───────────────────────────────────────────────────
       function renderDepartment() {
         let depts = DATA.departments || [];
-        // Chef de Service: voir seulement son département
+        // Chef de Service: voir seulement son service
         if (isChefService()) {
           depts = depts.filter((d) => d.id === AUTH.department_id);
         }
@@ -1702,15 +1790,86 @@
           };
         });
 
+        const visibleCount = 6;
+        
+        // Tab system for department views
         document.getElementById("view-container").innerHTML = `
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:20px">
-                  ${deptStats.map((d) => `<div class="dept-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#fff">${d.name}</div><span class="material-symbols-outlined" style="color:var(--primary);font-size:20px">local_hospital</span></div><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}">${d.rate}%</div><div style="font-size:11px;color:var(--text-f);margin-bottom:6px">taux de présence</div><div class="dept-bar-track"><div class="dept-bar-fill" style="width:${d.rate}%;background:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}"></div></div><div style="display:flex;justify-content:space-between;font-size:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><span style="color:var(--text-m)">${d.nb} stagiaires</span><span style="color:${d.alerts > 0 ? "var(--error)" : "var(--primary)"};">${d.alerts} alertes</span></div></div>`).join("")}
-                </div>
-                <div class="card" style="margin-bottom:16px"><div class="card-header"><h3>Comparatif des Services</h3></div><div class="card-body"><div class="chart-wrap" style="height:300px"><canvas id="ch-dept"></canvas></div></div></div>
-                <div class="card"><div class="card-header" style="margin-bottom:0"><h3>Taux de présence moyen par département</h3></div><div class="card-body"><div class="chart-wrap" style="height:220px"><canvas id="ch-dept2"></canvas></div></div></div>`;
+                <div style="margin-bottom:24px">
+                  <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid var(--border);padding-bottom:0">
+                    <button onclick="switchDeptTab('overview')" id="dept-tab-overview" style="padding:12px 16px;background:transparent;color:var(--primary);border:none;border-bottom:3px solid var(--primary);cursor:pointer;font-weight:600;font-size:14px">Vue d'ensemble</button>
+                    <button onclick="switchDeptTab('planning')" id="dept-tab-planning" style="padding:12px 16px;background:transparent;color:var(--text-m);border:none;border-bottom:3px solid transparent;cursor:pointer;font-weight:600;font-size:14px">Planning des rotations</button>
+                  </div>
+                  
+                  <div id="dept-overview" style="display:block">
+                    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
+                      <div style="flex:1;display:flex;align-items:center;background:var(--surface-d);border:1px solid var(--border);border-radius:8px;padding:0 12px">
+                        <span class="material-symbols-outlined" style="color:var(--text-m);margin-right:8px">search</span>
+                        <input type="text" id="dept-search" placeholder="Rechercher un service..." style="border:none;background:transparent;color:#fff;font-size:14px;padding:10px 0;width:100%;outline:none" />
+                      </div>
+                    </div>
+                    <div id="dept-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:12px">
+                      ${deptStats.slice(0, visibleCount).map((d) => `<div class="dept-card" data-service="${d.name.toLowerCase()}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#fff">${d.name}</div><span class="material-symbols-outlined" style="color:var(--primary);font-size:20px">local_hospital</span></div><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}">${d.rate}%</div><div style="font-size:11px;color:var(--text-f);margin-bottom:6px">taux de présence</div><div class="dept-bar-track"><div class="dept-bar-fill" style="width:${d.rate}%;background:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}"></div></div><div style="display:flex;justify-content:space-between;font-size:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><span style="color:var(--text-m)">${d.nb} stagiaires</span><span style="color:${d.alerts > 0 ? "var(--error)" : "var(--primary)"};">${d.alerts} alertes</span></div></div>`).join("")}
+                    </div>
+                    <div id="service-actions" style="display:flex;justify-content:flex-end;margin:0 0 20px">
+                      ${deptStats.length > visibleCount ? `<button id="services-plus-btn" onclick="showMoreServices()" style="width:auto;min-width:104px;padding:10px 14px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px"><span class="material-symbols-outlined" style="font-size:18px">add</span> Plus</button>` : ''}
+                    </div>
+                    <div class="card"><div class="card-header" style="margin-bottom:0"><h3>Performance par service</h3></div><div class="card-body"><div class="chart-wrap" style="height:260px"><canvas id="ch-dept2"></canvas></div></div></div>
+                  </div>
+                  
+                  <div id="dept-planning" style="display:none">
+                    ${canPlanRotations() ? `
+                    <div class="card" style="margin-bottom:16px">
+                      <div class="card-header">
+                        <div>
+                          <h3>Planifier une rotation</h3>
+                          <p>La rotation est enregistrÃ©e sur le stagiaire : service, date de dÃ©but et date de fin.</p>
+                        </div>
+                      </div>
+                      <div class="card-body">
+                        <div id="rotation-plan-msg"></div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end">
+                          <div class="form-group" style="margin-bottom:0">
+                            <label class="form-label">Stagiaire</label>
+                            <select id="rotation-intern" class="form-control" onchange="prefillRotationForm()">
+                              ${getRotationInterns().map((i) => `<option value="${i.id}">${i.first_name} ${i.last_name}</option>`).join("")}
+                            </select>
+                          </div>
+                          <div class="form-group" style="margin-bottom:0">
+                            <label class="form-label">Service</label>
+                            <select id="rotation-dept" class="form-control" ${isChefService() ? "disabled" : ""}>
+                              ${getRotationDepartments().map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}
+                            </select>
+                          </div>
+                          <div class="form-group" style="margin-bottom:0">
+                            <label class="form-label">Date de dÃ©but</label>
+                            <input id="rotation-start" class="form-control" type="date" />
+                          </div>
+                          <div class="form-group" style="margin-bottom:0">
+                            <label class="form-label">Date de fin</label>
+                            <input id="rotation-end" class="form-control" type="date" />
+                          </div>
+                          <button class="btn btn-primary" style="height:42px;justify-content:center" onclick="saveRotationPlan()" ${getRotationInterns().length === 0 ? "disabled" : ""}>
+                            <span class="material-symbols-outlined">event_available</span> Planifier
+                          </button>
+                        </div>
+                      </div>
+                    </div>` : `
+                    <div class="alert alert-info" style="margin-bottom:16px">
+                      <span class="material-symbols-outlined" style="font-size:16px">info</span>
+                      Directeur : consultation uniquement. La planification est centralisÃ©e par DFRI / Administration ou par le Chef de service.
+                    </div>`}
+                    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
+                      <div style="flex:1;display:flex;align-items:center;background:var(--surface-d);border:1px solid var(--border);border-radius:8px;padding:0 12px">
+                        <span class="material-symbols-outlined" style="color:var(--text-m);margin-right:8px">search</span>
+                        <input type="text" id="planning-search" placeholder="Rechercher un service ou un stagiaire..." oninput="filterPlanningRotations()" style="border:none;background:transparent;color:#fff;font-size:14px;padding:10px 0;width:100%;outline:none" />
+                      </div>
+                    </div>
+                    <div id="planning-content" style="display:flex;flex-direction:column;gap:20px"></div>
+                  </div>
+                </div>`;
 
         nextTick(() => {
-          CHARTS["dept"] = new Chart(document.getElementById("ch-dept"), {
+          if (document.getElementById("ch-dept")) CHARTS["dept"] = new Chart(document.getElementById("ch-dept"), {
             type: "bar",
             data: {
               labels: deptStats.map((d) => d.name),
@@ -1780,9 +1939,296 @@
             },
           });
         });
+        
+        // Add search functionality
+        nextTick(() => {
+          const searchInput = document.getElementById('dept-search');
+          if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+              const searchTerm = normalizeSearchText(e.target.value);
+              const cards = document.querySelectorAll('[data-service]');
+              cards.forEach(card => {
+                const serviceName = normalizeSearchText(card.getAttribute('data-service'));
+                card.style.display = serviceName.includes(searchTerm) ? '' : 'none';
+              });
+            });
+          }
+        });
+      }
+      
+      function normalizeSearchText(value) {
+        return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      }
+
+      function showMoreServices() {
+        let allDepts = DATA.departments || [];
+        if (isChefService()) {
+          allDepts = allDepts.filter((d) => d.id === AUTH.department_id);
+        }
+        const interns = DATA.interns || [];
+        const history = DATA.history || [];
+        const deptStats = allDepts.map((d) => {
+          const dInterns = interns.filter((i) => i.department_id === d.id);
+          const ids = dInterns.map((i) => i.id);
+          const dHistory = history.filter((h) => ids.includes(h.intern_id));
+          const present = dHistory.filter((h) => h.status !== "absent").length;
+          const total = dHistory.length;
+          const rate = total ? Math.round((present / total) * 100) : 0;
+          const totalH = dHistory
+            .reduce((s, h) => s + (h.work_duration || 0), 0)
+            .toFixed(1);
+          const alerts = dHistory.filter((h) => h.needs_attention).length;
+          return {
+            ...d,
+            nb: dInterns.length,
+            rate,
+            totalH,
+            alerts,
+            present,
+            total,
+          };
+        });
+        
+        const cardsContainer = document.getElementById('dept-cards');
+        const newCards = deptStats.slice(6).map((d) => `<div class="dept-card" data-service="${d.name.toLowerCase()}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#fff">${d.name}</div><span class="material-symbols-outlined" style="color:var(--primary);font-size:20px">local_hospital</span></div><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}">${d.rate}%</div><div style="font-size:11px;color:var(--text-f);margin-bottom:6px">taux de présence</div><div class="dept-bar-track"><div class="dept-bar-fill" style="width:${d.rate}%;background:${d.rate >= 80 ? "var(--primary)" : d.rate >= 60 ? "var(--warn)" : "var(--error)"}"></div></div><div style="display:flex;justify-content:space-between;font-size:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><span style="color:var(--text-m)">${d.nb} stagiaires</span><span style="color:${d.alerts > 0 ? "var(--error)" : "var(--primary)"};">${d.alerts} alertes</span></div></div>`).join('');
+        
+        cardsContainer.innerHTML += newCards;
+        
+        const button = document.querySelector('button[onclick="showMoreServices()"]');
+        if (button) button.style.display = 'none';
+        const actions = document.getElementById('service-actions');
+        if (actions) {
+          actions.innerHTML = `<button id="services-less-btn" onclick="resetServicesOverview()" style="width:auto;min-width:104px;padding:10px 14px;background:var(--surface-d);color:var(--primary);border:1px solid var(--primary-g);border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px"><span class="material-symbols-outlined" style="font-size:18px">remove</span> Moins</button>`;
+        }
+        
+        // Re-apply search filter after adding new cards
+        const searchInput = document.getElementById('dept-search');
+        if (searchInput && searchInput.value) {
+          const searchTerm = normalizeSearchText(searchInput.value);
+          const cards = document.querySelectorAll('[data-service]');
+          cards.forEach(card => {
+            const serviceName = normalizeSearchText(card.getAttribute('data-service'));
+            card.style.display = serviceName.includes(searchTerm) ? '' : 'none';
+          });
+        }
+      }
+
+      function resetServicesOverview() {
+        renderDepartment();
+      }
+      
+      function switchDeptTab(tab) {
+        const overviewTab = document.getElementById('dept-tab-overview');
+        const planningTab = document.getElementById('dept-tab-planning');
+        const overviewContent = document.getElementById('dept-overview');
+        const planningContent = document.getElementById('dept-planning');
+        
+        if (tab === 'overview') {
+          overviewTab.style.borderBottomColor = 'var(--primary)';
+          overviewTab.style.color = 'var(--primary)';
+          planningTab.style.borderBottomColor = 'transparent';
+          planningTab.style.color = 'var(--text-m)';
+          overviewContent.style.display = 'block';
+          planningContent.style.display = 'none';
+        } else if (tab === 'planning') {
+          overviewTab.style.borderBottomColor = 'transparent';
+          overviewTab.style.color = 'var(--text-m)';
+          planningTab.style.borderBottomColor = 'var(--primary)';
+          planningTab.style.color = 'var(--primary)';
+          overviewContent.style.display = 'none';
+          planningContent.style.display = 'block';
+          renderPlanningView();
+          nextTick(filterPlanningRotations);
+          nextTick(prefillRotationForm);
+        }
+      }
+
+      function canPlanRotations() {
+        return isDFRI() || isChefService();
+      }
+
+      function getRotationDepartments() {
+        const depts = DATA.departments || [];
+        return isChefService() ? depts.filter((d) => d.id === AUTH.department_id) : depts;
+      }
+
+      function getRotationInterns() {
+        const interns = DATA.interns || [];
+        return isChefService() ? interns.filter((i) => i.department_id === AUTH.department_id) : interns;
+      }
+
+      function prefillRotationForm() {
+        const internId = document.getElementById('rotation-intern')?.value;
+        const intern = getRotationInterns().find((i) => i.id === internId);
+        if (!intern) return;
+        const deptSelect = document.getElementById('rotation-dept');
+        const startInput = document.getElementById('rotation-start');
+        const endInput = document.getElementById('rotation-end');
+        if (deptSelect) deptSelect.value = intern.department_id || '';
+        if (startInput) startInput.value = intern.start_date || '';
+        if (endInput) endInput.value = intern.end_date || '';
+      }
+
+      async function saveRotationPlan() {
+        const msgEl = document.getElementById('rotation-plan-msg');
+        const internId = document.getElementById('rotation-intern')?.value;
+        const department_id = document.getElementById('rotation-dept')?.value;
+        const start_date = document.getElementById('rotation-start')?.value;
+        const end_date = document.getElementById('rotation-end')?.value;
+        if (!internId || !department_id || !start_date || !end_date) {
+          if (msgEl) msgEl.innerHTML = '<div class="alert alert-error">Veuillez choisir le stagiaire, le service et les deux dates.</div>';
+          return;
+        }
+        if (new Date(start_date) > new Date(end_date)) {
+          if (msgEl) msgEl.innerHTML = '<div class="alert alert-error">La date de dÃ©but doit Ãªtre avant ou Ã©gale Ã  la date de fin.</div>';
+          return;
+        }
+        try {
+          const res = await apiFetch(`/interns/${internId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ department_id, start_date, end_date }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Erreur serveur");
+          const intern = DATA.interns.find((i) => i.id === internId);
+          if (intern) {
+            intern.department_id = department_id;
+            intern.start_date = start_date;
+            intern.end_date = end_date;
+          }
+          showToast("Rotation planifiÃ©e", "success");
+          renderPlanningView();
+          nextTick(filterPlanningRotations);
+          nextTick(prefillRotationForm);
+        } catch (e) {
+          if (msgEl) msgEl.innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+        }
+      }
+      
+      function renderPlanningView() {
+        const depts = (DATA.departments || []).filter(d => !isChefService() || d.id === AUTH.department_id);
+        const interns = DATA.interns || [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const planningHTML = depts.map(dept => {
+          const deptInterns = interns.filter(i => i.department_id === dept.id);
+          
+          // Separate interns into categories
+          const current = [];
+          const upcoming = [];
+          const ending = [];
+          
+          deptInterns.forEach(intern => {
+            // Using placeholder logic - will work with real dates from backend
+            const endDate = intern.end_date ? new Date(intern.end_date) : null;
+            const startDate = intern.start_date ? new Date(intern.start_date) : null;
+            
+            if (startDate && endDate) {
+              const daysUntilEnd = endDate ? Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)) : null;
+              const daysFromStart = startDate ? Math.ceil((today - startDate) / (1000 * 60 * 60 * 24)) : null;
+              
+              if (daysFromStart >= 0 && daysUntilEnd > 0) {
+                if (daysUntilEnd <= 3) {
+                  ending.push({...intern, daysLeft: daysUntilEnd});
+                } else {
+                  current.push({...intern, daysLeft: daysUntilEnd});
+                }
+              } else if (daysUntilEnd > 0 && daysFromStart < 0) {
+                const daysUntilStart = Math.ceil((startDate - today) / (1000 * 60 * 60 * 24));
+                if (daysUntilStart <= 7) {
+                  upcoming.push({...intern, daysUntilStart});
+                }
+              }
+            }
+          });
+          
+          const sections = [];
+          
+          if (ending.length > 0) {
+            sections.push(`
+              <div class="card" style="border-left:4px solid #ff6b6b">
+                <div class="card-header"><h3 style="color:#ff6b6b">Rotations se terminant sous 3 jours</h3></div>
+                <div class="card-body">
+                  ${ending.map(i => `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--border);background:rgba(255,107,107,0.05);border-radius:6px;margin-bottom:8px">
+                      <div>
+                        <div style="font-weight:600;color:#fff">${i.first_name} ${i.last_name}</div>
+                        <div style="font-size:12px;color:var(--text-m)">Fin : ${new Date(i.end_date).toLocaleDateString('fr-FR')}</div>
+                      </div>
+                      <span style="background:#ff6b6b;color:#fff;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600">${i.daysLeft} jour${i.daysLeft > 1 ? 's' : ''}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `);
+          }
+          
+          if (current.length > 0) {
+            sections.push(`
+              <div class="card" style="border-left:4px solid #45f1c3">
+                <div class="card-header"><h3 style="color:#45f1c3">En cours dans le service</h3></div>
+                <div class="card-body">
+                  ${current.map(i => `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--border);background:rgba(69,241,195,0.05);border-radius:6px;margin-bottom:8px">
+                      <div>
+                        <div style="font-weight:600;color:#fff">${i.first_name} ${i.last_name}</div>
+                        <div style="font-size:12px;color:var(--text-m)">Fin : ${new Date(i.end_date).toLocaleDateString('fr-FR')}</div>
+                      </div>
+                      <span style="background:#45f1c3;color:#0a0e27;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600">${i.daysLeft} jours</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `);
+          }
+          
+          if (upcoming.length > 0) {
+            sections.push(`
+              <div class="card" style="border-left:4px solid #4dabf7">
+                <div class="card-header"><h3 style="color:#4dabf7">À venir (7 prochains jours)</h3></div>
+                <div class="card-body">
+                  ${upcoming.map(i => `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--border);background:rgba(77,171,247,0.05);border-radius:6px;margin-bottom:8px">
+                      <div>
+                        <div style="font-weight:600;color:#fff">${i.first_name} ${i.last_name}</div>
+                        <div style="font-size:12px;color:var(--text-m)">Début : ${new Date(i.start_date).toLocaleDateString('fr-FR')}</div>
+                      </div>
+                      <span style="background:#4dabf7;color:#fff;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600">${i.daysUntilStart} jour${i.daysUntilStart > 1 ? 's' : ''}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `);
+          }
+          
+          if (sections.length === 0) {
+            sections.push(`<div class="card"><div class="card-body"><div style="text-align:center;color:var(--text-m);padding:40px 20px"><span class="material-symbols-outlined" style="font-size:48px;color:var(--text-f);display:block;margin-bottom:12px">event_note</span><p>Aucune rotation planifiée pour le moment</p></div></div></div>`);
+          }
+          
+          const searchTerms = [
+            dept.name,
+            ...deptInterns.map(i => `${i.first_name} ${i.last_name}`),
+            ...deptInterns.map(i => i.start_date || ''),
+            ...deptInterns.map(i => i.end_date || '')
+          ].join(' ').toLowerCase();
+          
+          return `<div class="planning-dept" data-planning-search="${searchTerms}"><h3 style="margin-bottom:16px;font-size:16px;color:var(--primary)">${dept.name}</h3>${sections.join('')}</div>`;
+        }).join('<div style="margin:24px 0;border-bottom:1px solid var(--border)"></div>');
+        
+        document.getElementById('planning-content').innerHTML = planningHTML || '<div class="card"><div class="card-body"><p>Aucune donnée de rotation disponible. Les rotations seront affichées une fois configurées dans le système.</p></div></div>';
       }
 
       // ── CLUSTERS & ML ────────────────────────────────────────────────────────
+      function filterPlanningRotations() {
+        const input = document.getElementById('planning-search');
+        const term = input ? normalizeSearchText(input.value.trim()) : '';
+        document.querySelectorAll('.planning-dept').forEach((dept) => {
+          const haystack = normalizeSearchText(dept.getAttribute('data-planning-search') || '');
+          dept.style.display = haystack.includes(term) ? '' : 'none';
+        });
+      }
+
       function renderClusters() {
         document.getElementById("view-container").innerHTML = `
                 <div class="grid3">
@@ -1967,7 +2413,7 @@
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.detail || "Erreur serveur");
-          showToast(data.message || "Absences annulées ✅", "success");
+          showToast(data.message || "Absences annulées", "success");
           await loadData();
           renderAlerts();
         } catch (e) {
@@ -2134,7 +2580,7 @@
           <section style="margin-bottom: 32px;">
             <h3 style="color: var(--primary); margin-bottom: 12px;">Notre Formation</h3>
             <p style="line-height: 1.6; color: var(--text-m); margin: 0;">
-              Ce projet s'inscrit dans le cadre de notre formation en <strong>Licence Analytique des Données</strong> au sein du Département Informatique de la <strong>Faculté des Sciences et Techniques (FST) de Tanger</strong>. Ce cursus nous spécialise dans la conception de solutions intelligentes pour le traitement, l'ingénierie (ETL) et la valorisation statistique des données complexes.
+              Ce projet s'inscrit dans le cadre de notre formation en <strong>Licence Analytique des Données</strong> au sein du Service Informatique de la <strong>Faculté des Sciences et Techniques (FST) de Tanger</strong>. Ce cursus nous spécialise dans la conception de solutions intelligentes pour le traitement, l'ingénierie (ETL) et la valorisation statistique des données complexes.
             </p>
           </section>
 
@@ -2150,6 +2596,7 @@
       </div>`;
   }
 
+
       // ── ADMINISTRATION ───────────────────────────────────────────────────────
       function renderAdmin() {
         // Chef de Service ne voit que l'onglet Stagiaires
@@ -2159,7 +2606,7 @@
         if (isDFRI()) {
           tabs.push(
             { id: 'import', label: 'Import Stagiaires', visible: true },
-            { id: 'depts', label: 'Départements', visible: true },
+            { id: 'depts', label: 'Services', visible: true },
             { id: 'accounts', label: 'Comptes Admin', visible: true },
             { id: 'pwd', label: 'Mot de passe', visible: true }
           );
@@ -2207,24 +2654,28 @@
                 <div class="grid2" style="align-items:start">
                   <div class="card">
                     <div class="admin-section-header card-header">
-                      <h3>Départements</h3>
+                      <h3>Services</h3>
                       <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-f)">${depts.length} enregistrés</span>
                     </div>
                     <div class="card-body" style="padding-top:0">
                       <div id="dept-list-msg"></div>
                       ${
                         depts.length === 0
-                          ? '<div class="empty-state"><span class="material-symbols-outlined">corporate_fare</span><p>Aucun département. Commencez par en créer un.</p></div>'
+                          ? '<div class="empty-state"><span class="material-symbols-outlined">corporate_fare</span><p>Aucun service. Commencez par en créer un.</p></div>'
                           : `
+                      <div style="display:flex;align-items:center;background:var(--surface-d);border:1px solid var(--border);border-radius:8px;padding:0 12px;margin-bottom:12px">
+                        <span class="material-symbols-outlined" style="color:var(--text-m);margin-right:8px">search</span>
+                        <input type="text" id="admin-dept-search" placeholder="Rechercher un service..." oninput="filterAdminDepartments()" style="border:none;background:transparent;color:#fff;font-size:14px;padding:10px 0;width:100%;outline:none" />
+                      </div>
                       <table class="data-table">
-                        <thead><tr><th>Nom du département</th><th>Stagiaires</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Nom du service</th><th>Stagiaires</th><th>Actions</th></tr></thead>
                         <tbody>
                           ${depts
                             .map((d) => {
                               const nb = interns.filter(
                                 (i) => i.department_id === d.id,
                               ).length;
-                              return `<tr id="dept-row-${d.id}">
+                              return `<tr id="dept-row-${d.id}" data-admin-dept-search="${d.name.toLowerCase()}">
                               <td>
                                 <span id="dept-label-${d.id}" style="font-weight:600">${d.name}</span>
                                 <input id="dept-input-${d.id}" class="form-control" value="${d.name}"
@@ -2258,19 +2709,19 @@
                   </div>
 
                   <div class="card">
-                    <div class="card-header"><h3>Ajouter un Département</h3></div>
+                    <div class="card-header"><h3>Ajouter un Service</h3></div>
                     <div class="card-body">
                       <div id="add-dept-msg"></div>
                       <div class="form-group">
-                        <label class="form-label">Nom du département</label>
+                        <label class="form-label">Nom du service</label>
                         <input class="form-control" id="inp-dept-name" placeholder="Ex: Radiologie, Ophtalmologie…" />
                       </div>
                       <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="addDept()">
-                        <span class="material-symbols-outlined">add_circle</span> Créer le département
+                        <span class="material-symbols-outlined">add_circle</span> Créer le service
                       </button>
                       <div style="margin-top:20px;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
                         <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f);margin-bottom:6px">ℹ Note</div>
-                        <p style="font-size:12px;color:var(--text-m)">Double-cliquez sur un nom ou cliquez ✏️ pour renommer. Un département ne peut pas être supprimé tant qu'il contient des stagiaires.</p>
+                        <p style="font-size:12px;color:var(--text-m)">Double-cliquez sur un nom ou cliquez ✏️ pour renommer. Un service ne peut pas être supprimé tant qu'il contient des stagiaires.</p>
                       </div>
                     </div>
                   </div>
@@ -2281,6 +2732,15 @@
           const label = document.getElementById(`dept-label-${d.id}`);
           if (label)
             label.addEventListener("dblclick", () => startEditDept(d.id));
+        });
+      }
+
+      function filterAdminDepartments() {
+        const input = document.getElementById('admin-dept-search');
+        const term = input ? normalizeSearchText(input.value.trim()) : '';
+        document.querySelectorAll('[data-admin-dept-search]').forEach((row) => {
+          const haystack = normalizeSearchText(row.getAttribute('data-admin-dept-search') || '');
+          row.style.display = haystack.includes(term) ? '' : 'none';
         });
       }
 
@@ -2321,13 +2781,15 @@
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.detail || "Erreur");
-          showToast(`✅ Département renommé en "${newName}"`, "success");
+          showToast(`Service renommé en "${newName}"`, "success");
           // Update local DATA without full reload
           const dept = DATA.departments.find((d) => d.id === id);
           if (dept) dept.name = newName;
           // Update label in-place without re-render
           const label = document.getElementById(`dept-label-${id}`);
           if (label) label.textContent = newName;
+          const row = document.getElementById(`dept-row-${id}`);
+          if (row) row.setAttribute('data-admin-dept-search', normalizeSearchText(newName));
           cancelEditDept(id, newName);
         } catch (e) {
           showToast(e.message, "error");
@@ -2349,7 +2811,7 @@
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.detail || "Erreur serveur");
-          showToast(`✅ Département "${name}" créé`, "success");
+          showToast(`Service "${name}" créé`, "success");
           document.getElementById("inp-dept-name").value = "";
           // Refresh departments in DATA
           const dRes = await apiFetch("/departments");
@@ -2369,7 +2831,7 @@
           return;
         }
         openModal(
-          "Supprimer ce département ?",
+          "Supprimer ce service ?",
           `Êtes-vous sûr de vouloir supprimer <strong style="color:#fff">${name}</strong> ? Cette action est irréversible.`,
           `<button class="btn btn-danger" onclick="deleteDept('${id}')"><span class="material-symbols-outlined">delete_forever</span> Supprimer</button>
                  <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>`,
@@ -2383,7 +2845,7 @@
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.detail || "Erreur");
-          showToast(data.message || "Département supprimé", "success");
+          showToast(data.message || "Service supprimé", "success");
           closeModal();
           const dRes = await apiFetch("/departments");
           DATA.departments = await dRes.json();
@@ -2411,6 +2873,10 @@
                       <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-f)">${interns.length} enregistrés</span>
                     </div>
                     <div class="card-body" style="padding-top:0;overflow-x:auto">
+                      <div style="display:flex;align-items:center;background:var(--surface-d);border:1px solid var(--border);border-radius:8px;padding:0 12px;margin-bottom:12px;min-width:520px">
+                        <span class="material-symbols-outlined" style="color:var(--text-m);margin-right:8px">search</span>
+                        <input type="text" id="admin-intern-search" placeholder="Rechercher un stagiaire ou un service..." oninput="filterAdminInterns()" style="border:none;background:transparent;color:#fff;font-size:14px;padding:10px 0;width:100%;outline:none" />
+                      </div>
                       <table class="data-table">
                         <thead><tr><th>Prénom</th><th>Nom</th><th>Service</th><th>Badge</th><th>Actions</th></tr></thead>
                         <tbody>
@@ -2426,7 +2892,7 @@
                                     `<option value="${d.id}" ${d.id === i.department_id ? "selected" : ""}>${d.name}</option>`,
                                 )
                                 .join("");
-                              return `<tr id="intern-row-${i.id}">
+                              return `<tr id="intern-row-${i.id}" data-admin-intern-search="${`${i.first_name} ${i.last_name} ${dName}`.toLowerCase()}">
                               <!-- FIRST NAME: display / edit -->
                               <td>
                                 <span id="intern-fn-label-${i.id}" style="font-weight:600">${i.first_name}</span>
@@ -2489,13 +2955,13 @@
                       <div class="form-group"><label class="form-label">Nom</label><input class="form-control" id="inp-ln" placeholder="Nom de famille"/></div>
                       <div class="form-group"><label class="form-label">Service</label>
                         <select class="form-control" id="inp-dept">
-                          ${isChefService() ? `<option value="${AUTH.department_id}">${depts.length > 0 ? depts[0].name : 'Mon Service'}</option>` : (depts.length === 0 ? '<option value="" disabled>— Aucun département disponible —</option>' : depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join(""))}
+                          ${isChefService() ? `<option value="${AUTH.department_id}">${depts.length > 0 ? depts[0].name : 'Mon Service'}</option>` : (depts.length === 0 ? '<option value="" disabled>— Aucun service disponible —</option>' : depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join(""))}
                         </select>
                       </div>
                       <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="addIntern()" ${depts.length === 0 ? "disabled" : ""}>
                         <span class="material-symbols-outlined">person_add</span> Enregistrer
                       </button>
-                      ${depts.length === 0 ? '<div class="alert alert-warn" style="margin-top:12px"><span class="material-symbols-outlined" style="font-size:16px">warning</span> Créez d\'abord un département dans l\'onglet Départements.</div>' : ""}
+                      ${depts.length === 0 ? '<div class="alert alert-warn" style="margin-top:12px"><span class="material-symbols-outlined" style="font-size:16px">warning</span> Créez d\'abord un service dans l\'onglet Services.</div>' : ""}
                       <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
                         <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f);margin-bottom:4px">ℹ Modifier un stagiaire</div>
                         <p style="font-size:12px;color:var(--text-m)">Cliquez ✏️ sur une ligne pour modifier le nom ou le service. Confirmez avec ✓ ou annulez avec ✕. Vous pouvez aussi double-cliquer sur le nom.</p>
@@ -2513,6 +2979,15 @@
         });
       }
 
+      function filterAdminInterns() {
+        const input = document.getElementById('admin-intern-search');
+        const term = input ? normalizeSearchText(input.value.trim()) : '';
+        document.querySelectorAll('[data-admin-intern-search]').forEach((row) => {
+          const haystack = normalizeSearchText(row.getAttribute('data-admin-intern-search') || '');
+          row.style.display = haystack.includes(term) ? '' : 'none';
+        });
+      }
+
       function startEditIntern(id) {
         // show inputs, hide labels
         ["fn", "ln"].forEach((f) => {
@@ -2521,7 +2996,7 @@
           document.getElementById(`intern-${f}-input-${id}`).style.display =
             "block";
         });
-        // Chef de Service ne peut pas changer le département
+        // Chef de Service ne peut pas changer le service
         document.getElementById(`intern-dept-label-${id}`).style.display =
           "none";
         const deptSelect = document.getElementById(`intern-dept-select-${id}`);
@@ -2578,7 +3053,7 @@
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.detail || "Erreur");
-          showToast(`✅ ${first_name} ${last_name} mis à jour`, "success");
+          showToast(`${first_name} ${last_name} mis à jour`, "success");
 
           // Update DATA in-place
           const intern = DATA.interns.find((i) => i.id === id);
@@ -2597,6 +3072,8 @@
           const deptName = dept ? dept.name : "—";
           document.getElementById(`intern-dept-label-${id}`).textContent =
             deptName;
+          const row = document.getElementById(`intern-row-${id}`);
+          if (row) row.setAttribute('data-admin-intern-search', normalizeSearchText(`${first_name} ${last_name} ${deptName}`));
 
           // Refresh badge button onclick with updated name + department
           const badgeBtn = document.querySelector(
@@ -2630,7 +3107,7 @@
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.detail || "Erreur serveur");
-          showToast(`✅ ${first_name} ${last_name} ajouté(e)`, "success");
+          showToast(`${first_name} ${last_name} ajouté(e)`, "success");
           document.getElementById("inp-fn").value = "";
           document.getElementById("inp-ln").value = "";
           await loadData();
@@ -2671,14 +3148,26 @@
                   <div class="card">
                     <div class="card-header"><h3>Comptes Administrateurs</h3></div>
                     <div class="card-body" style="padding-top:0">
-                      <table class="data-table"><thead><tr><th>Identifiant</th><th>Rôle</th><th>Département</th><th></th></tr></thead><tbody>
+                      <table class="data-table"><thead><tr><th>Identifiant</th><th>Rôle</th><th>Service</th><th></th></tr></thead><tbody>
                         ${admins
                           .map((a) => {
                             const dept = depts.find(
                               (d) => d.id === a.department_id,
                             );
                             const isMe = a.username === AUTH.username;
-                            return `<tr><td style="font-weight:600">${a.username}${isMe ? ' <span style="font-size:10px;color:var(--primary)">(moi)</span>' : ""}</td><td>${a.role === "super_admin" ? '<span class="badge badge-green">Super Admin</span>' : '<span class="badge badge-grey">Superviseur</span>'}</td><td style="font-size:12px;color:var(--text-m)">${dept ? dept.name : a.role === "super_admin" ? "Tous" : "—"}</td><td>${!isMe ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDeleteAdmin('${a.id}','${a.username}')"><span class="material-symbols-outlined" style="font-size:13px">delete</span></button>` : ""}</td></tr>`;
+                            const roleLabels = {
+                              "dfri": "Directeur IT",
+                              "directeur": "Directeur",
+                              "chef_service": "Chef de Service",
+                              "secretaire": "Secrétaire"
+                            };
+                            const roleBadgeColors = {
+                              "dfri": "badge-green",
+                              "directeur": "badge-blue",
+                              "chef_service": "badge-orange",
+                              "secretaire": "badge-grey"
+                            };
+                            return `<tr><td style="font-weight:600">${a.username}${isMe ? ' <span style="font-size:10px;color:var(--primary)">(moi)</span>' : ""}</td><td><span class="badge ${roleBadgeColors[a.role] || 'badge-grey'}">${roleLabels[a.role] || a.role}</span></td><td style="font-size:12px;color:var(--text-m)">${dept ? dept.name : "—"}</td><td>${!isMe ? `<button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="confirmDeleteAdmin('${a.id}','${a.username}')"><span class="material-symbols-outlined" style="font-size:13px">delete</span></button>` : ""}</td></tr>`;
                           })
                           .join("")}
                       </tbody></table>
@@ -2690,8 +3179,8 @@
                       <div id="create-admin-msg"></div>
                       <div class="form-group"><label class="form-label">Identifiant</label><input class="form-control" id="ca-user" placeholder="nom_utilisateur"/></div>
                       <div class="form-group"><label class="form-label">Mot de passe (min. 8 car.)</label><input class="form-control" id="ca-pwd" type="password" placeholder="••••••••"/></div>
-                      <div class="form-group"><label class="form-label">Rôle</label><select class="form-control" id="ca-role" onchange="toggleDeptField()"><option value="supervisor">Superviseur</option><option value="super_admin">Super Admin</option></select></div>
-                      <div class="form-group" id="ca-dept-group"><label class="form-label">Département (obligatoire pour superviseur)</label><select class="form-control" id="ca-dept">${depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}</select></div>
+                      <div class="form-group"><label class="form-label">Rôle</label><select class="form-control" id="ca-role" onchange="toggleDeptField()"><option value="secretaire">Secrétaire</option><option value="directeur">Directeur</option><option value="chef_service">Chef de Service</option><option value="dfri">Directeur IT</option></select></div>
+                      <div class="form-group" id="ca-dept-group" style="display:none"><label class="form-label">Service (obligatoire pour Chef de Service)</label><select class="form-control" id="ca-dept">${depts.map((d) => `<option value="${d.id}">${d.name}</option>`).join("")}</select></div>
                       <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px" onclick="createAdmin()"><span class="material-symbols-outlined">person_add</span> Créer le compte</button>
                     </div>
                   </div>
@@ -2701,7 +3190,7 @@
       function toggleDeptField() {
         const role = document.getElementById("ca-role").value;
         document.getElementById("ca-dept-group").style.display =
-          role === "supervisor" ? "block" : "none";
+          role === "chef_service" ? "block" : "none";
       }
 
       async function createAdmin() {
@@ -2709,7 +3198,7 @@
         const password = document.getElementById("ca-pwd").value;
         const role = document.getElementById("ca-role").value;
         const department_id =
-          role === "supervisor"
+          role === "chef_service"
             ? document.getElementById("ca-dept").value
             : null;
         const msgEl = document.getElementById("create-admin-msg");
@@ -2721,6 +3210,11 @@
         if (password.length < 8) {
           msgEl.innerHTML =
             '<div class="alert alert-error">Mot de passe trop court (min. 8 car.).</div>';
+          return;
+        }
+        if (role === "chef_service" && !department_id) {
+          msgEl.innerHTML =
+            '<div class="alert alert-error">Un Chef de Service doit avoir un service assign.</div>';
           return;
         }
         try {
@@ -2856,37 +3350,38 @@
 
       // ── BOOT ──────────────────────────────────────────────────────────────────
       (function boot() {
-         // Empêche le retour arrière vers le dashboard après logout
-          history.pushState(null, '', window.location.href);
-          window.addEventListener('popstate', function() {
-              history.pushState(null, '', window.location.href);
-          });
-
-          const saved = sessionStorage.getItem("chu_auth");
-          if (saved) {
-              try {
-                  AUTH = JSON.parse(saved);
-              // Vérifier le token côté serveur avant d'afficher le dashboard
-                  fetch(`${API}/auth/admins`, {
-                      headers: { 'Authorization': `Bearer ${AUTH.access_token}` }
-                  }).then(res => {
-                      if (res.ok) {
-                          document.getElementById("login-overlay").classList.add("hidden");
-                          document.getElementById("app").classList.add("visible");
-                          initApp();
-                      } else {
-                      // Token invalide ou expiré
-                          sessionStorage.removeItem("chu_auth");
-                          AUTH = null;
-                      }
-                  }).catch(() => {
-                      sessionStorage.removeItem("chu_auth");
-                      AUTH = null;
-                 });
-              }  catch {
-                   sessionStorage.removeItem("chu_auth");
-              } 
+        const saved = sessionStorage.getItem("chu_auth");
+        if (saved) {
+          try {
+            AUTH = JSON.parse(saved);
+            // Vérifier le token côté serveur AVANT d'afficher le dashboard
+            // Si le token est expiré, le serveur retournera 401
+            fetch(`${API}/auth/me`, {
+              method: "GET",
+              headers: { Authorization: `Bearer ${AUTH.access_token}` }
+            })
+            .then(res => {
+              if (res.ok) {
+                document.getElementById("login-overlay").classList.add("hidden");
+                document.getElementById("app").classList.add("visible");
+                initApp();
+              } else {
+                sessionStorage.removeItem("chu_auth");
+                AUTH = null;
+                showLoginError("Votre session a expiré ou est invalide. Veuillez vous reconnecter.");
+              }
+            })
+            .catch((err) => {
+              console.error("Erreur vérification token:", err);
+              sessionStorage.removeItem("chu_auth");
+              AUTH = null;
+            });
+          } catch (err) {
+            console.error("Erreur parsing token:", err);
+            sessionStorage.removeItem("chu_auth");
+            AUTH = null;
           }
+        }
       })();
     </script>
     <script>

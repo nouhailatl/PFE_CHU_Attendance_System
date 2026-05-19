@@ -20,4 +20,4 @@ moi = Intern(
 db.add(moi)
 db.commit()
 db.close()
-print("✅ Tu es officiellement enregistrée dans la base !")
+print("Tu es officiellement enregistrée dans la base !")

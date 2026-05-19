@@ -199,19 +199,19 @@ def print_header():
 def generate_for_row(row: dict):
     nom_complet = f"{row['first_name']} {row['last_name']}"
     pdf_path = creer_badge_pro(nom_complet, row["id"], row["dept_name"])
-    print(f"  ✅  Badge généré → {pdf_path}")
+    print(f"  Badge généré → {pdf_path}")
 
 
 def menu_all():
     # Fetch everything in ONE short-lived session, then close it before looping
     interns = _fetch_all_interns()
     if not interns:
-        print("\n⚠️  Aucun stagiaire trouvé dans la base.")
+        print("\n  Aucun stagiaire trouvé dans la base.")
         return
-    print(f"\n🖨️  Génération de {len(interns)} badge(s)...\n")
+    print(f"\n  Génération de {len(interns)} badge(s)...\n")
     for row in interns:
         generate_for_row(row)
-    print(f"\n✅  {len(interns)} badge(s) générés avec succès !")
+    print(f"\n  {len(interns)} badge(s) générés avec succès !")
 
 
 def menu_specific():

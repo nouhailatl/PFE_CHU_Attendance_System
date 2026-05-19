@@ -50,6 +50,8 @@ class Intern(Base):
     first_name = Column(String)
     last_name = Column(String)
     department_id = Column(String, ForeignKey("departments.id"))
+    start_date = Column(String, nullable=True)
+    end_date = Column(String, nullable=True)
     cne    = Column(String, nullable=True)
     annee  = Column(Integer, nullable=True)
     groupe = Column(String, nullable=True)

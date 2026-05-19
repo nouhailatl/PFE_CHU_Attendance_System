@@ -3,7 +3,7 @@ CHU Internship Attendance Platform — main.py
 =============================================
 
 CHECK-IN tiers (Morocco local time — UTC+1, fixed offset, no DST):
-  before 08:30        → ❌ rejected  (window not open)
+  before 08:30        → rejected  (window not open)
   08:30 – 09:35       → on_time
   09:36 – 10:10       → late
   after  10:10        → missed_checkin  (recorded, NOT rejected)
@@ -14,7 +14,7 @@ CHECK-OUT tiers:
   after  17:00        → missed_checkout (recorded, NOT rejected)
 
 OTHER RULES:
-  - Any two scans within 5 minutes         → ❌ rejected (double-scan guard)
+  - Any two scans within 5 minutes         → rejected (double-scan guard)
   - No scan at all by end of day           → auto-marked "absent"
     via POST /admin/mark-absences (run once at ~18:00 via cron or manually)
   - Checked in but no checkout by night    → auto-closed as "missed_checkout"
@@ -49,7 +49,8 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from database import SessionLocal, Intern, DailyStatus, Department, Admin
+from sqlalchemy import inspect, text
+from database import SessionLocal, Intern, DailyStatus, Department, Admin, engine
 from schemas import LoginRequest, InternCreate, CreateAdminRequest, ChangePasswordRequest
 from auth import (                        
     get_current_admin,
@@ -80,6 +81,33 @@ import threading
 
 def export_in_background():
     threading.Thread(target=export_to_excel, daemon=True).start()
+
+
+def _ensure_intern_rotation_columns():
+    """Add lightweight rotation planning columns on existing databases."""
+    inspector = inspect(engine)
+    existing = {col["name"] for col in inspector.get_columns("interns")}
+    missing = [name for name in ("start_date", "end_date") if name not in existing]
+    if not missing:
+        return
+    with engine.begin() as conn:
+        for column in missing:
+            conn.execute(text(f"ALTER TABLE interns ADD COLUMN {column} VARCHAR"))
+    print(f"Intern rotation columns added: {', '.join(missing)}")
+
+
+def _parse_optional_iso_date(value: str | None, field_name: str) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        return date_type.fromisoformat(value).isoformat()
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{field_name} doit etre une date valide au format YYYY-MM-DD")
+
+
+def _validate_rotation_dates(start_date: str | None, end_date: str | None):
+    if start_date and end_date and date_type.fromisoformat(start_date) > date_type.fromisoformat(end_date):
+        raise HTTPException(status_code=400, detail="La date de debut doit etre avant ou egale a la date de fin")
 
 
 # ── APSCHEDULER SETUP ──────────────────────────────────────────────────────────
@@ -135,7 +163,7 @@ def _auto_close_checkouts_for_date(target_date: date_type, db: Session) -> dict:
 
     db.commit()
     return {
-        "message": f"✅ {closed_count} checkout(s) fermé(s) pour {target_date}",
+        "message": f"{closed_count} checkout(s) fermé(s) pour {target_date}",
         "date": str(target_date),
         "count": closed_count,
     }
@@ -182,7 +210,7 @@ def _mark_absences_for_date(target_date: date_type, db: Session) -> dict:
 
     db.commit()
     return {
-        "message": f"✅ {absent_count} stagiaire(s) absent(s) pour {target_date}",
+        "message": f"{absent_count} stagiaire(s) absent(s) pour {target_date}",
         "date": str(target_date),
         "count": absent_count,
     }
@@ -225,9 +253,9 @@ def _run_etl_ml_job():
             timeout=120,
         )
         if etl_result.returncode != 0:
-            print(f"⚠️  ETL error: {etl_result.stderr}")
+            print(f"ETL error: {etl_result.stderr}")
     except Exception as e:
-        print(f"❌ ETL job failed: {e}")
+        print(f"ETL job failed: {e}")
 
     # ── ML retrain ────────────────────────────────────────────────────
     ml_script = os.path.join("ml", "train.py")
@@ -240,13 +268,13 @@ def _run_etl_ml_job():
                 timeout=120,
             )
             if ml_result.returncode != 0:
-                print(f"⚠️  ML training error: {ml_result.stderr}")
+                print(f"ML training error: {ml_result.stderr}")
         except Exception as e:
-            print(f"❌ ML training job failed: {e}")
+            print(f"ML training job failed: {e}")
 
     # ── Record that the pipeline ran today ────────────────────────────
     _write_last_pipeline_run(now_local().date())
-    print(f"✅ Nightly pipeline completed and recorded for {now_local().date()}")
+    print(f"Nightly pipeline completed and recorded for {now_local().date()}")
 
 
 # ── PIPELINE LAST-RUN TRACKER ─────────────────────────────────────────────────
@@ -271,7 +299,7 @@ def _write_last_pipeline_run(d: date_type):
         with open(PIPELINE_LAST_RUN_FILE, "w") as f:
             f.write(str(d))
     except Exception as e:
-        print(f"⚠️  Could not write pipeline last-run file: {e}")
+        print(f"Could not write pipeline last-run file: {e}")
 
 
 def _get_last_working_day(reference: date_type) -> date_type:
@@ -362,23 +390,23 @@ def _check_and_run_missed_pipeline(db: Session):
 
     # Nothing to catch up if we already ran for the last working day (or later)
     if last_run is not None and last_run >= last_working_day:
-        print(f"✅ Pipeline up-to-date (last run: {last_run}, last working day: {last_working_day})")
+        print(f"Pipeline up-to-date (last run: {last_run}, last working day: {last_working_day})")
         return False
 
     # Also skip on weekends when there are literally no working days to catch up
     # (e.g. server restarted on a Saturday morning right after Friday's pipeline ran)
     if last_run == last_working_day:
-        print(f"✅ Pipeline already ran for {last_working_day}")
+        print(f"Pipeline already ran for {last_working_day}")
         return False
 
-    print(f"🔄 CATCH-UP: Pipeline missed for {last_working_day} — running now...")
+    print(f"CATCH-UP: Pipeline missed for {last_working_day} — running now...")
     try:
         results = _run_pipeline_for_date(last_working_day, db)
         _write_last_pipeline_run(last_working_day)
-        print(f"✅ CATCH-UP: Pipeline completed for {last_working_day}. Results: {results}")
+        print(f"CATCH-UP: Pipeline completed for {last_working_day}. Results: {results}")
         return True
     except Exception as e:
-        print(f"❌ CATCH-UP: Pipeline failed for {last_working_day}: {e}")
+        print(f"CATCH-UP: Pipeline failed for {last_working_day}: {e}")
         return False
 
 
@@ -386,11 +414,12 @@ def _check_and_run_missed_pipeline(db: Session):
 async def lifespan(app: FastAPI):
     """FastAPI lifespan: start scheduler on startup, stop on shutdown."""
     # ── Startup ───────────────────────────────────────────────────────
+    _ensure_intern_rotation_columns()
     scheduler.add_job(_run_auto_close_job, "cron", hour=23, minute=0, id="auto_close")
     scheduler.add_job(_run_mark_absences_job, "cron", hour=23, minute=5, id="mark_absences")
     scheduler.add_job(_run_etl_ml_job, "cron", hour=23, minute=30, id="etl_ml")
     scheduler.start()
-    print("✅ APScheduler started — nightly jobs scheduled for 23:00, 23:05, 23:30")
+    print("APScheduler started — nightly jobs scheduled for 23:00, 23:05, 23:30")
 
     # ── CATCH-UP: Check if nightly pipeline was missed ────────────────
     db = SessionLocal()
@@ -402,7 +431,7 @@ async def lifespan(app: FastAPI):
     yield
     # ── Shutdown ──────────────────────────────────────────────────────
     scheduler.shutdown(wait=True)
-    print("✅ APScheduler stopped")
+    print("APScheduler stopped")
 
 # ── TIMEZONE ──────────────────────────────────────────────────────────────────
 # Morocco has been permanently on UTC+1 since October 2018 (no DST).
@@ -552,6 +581,8 @@ class InternCreate(BaseModel):
     first_name: str
     last_name: str
     department_id: str
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 # ── APP SETUP ─────────────────────────────────────────────────────────────────
@@ -623,9 +654,9 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
         
 
         labels = {
-            "on_time":        "✅ À l'heure",
+            "on_time":        "À l'heure",
             "late":           "⏰ En retard",
-            "missed_checkin": "⚠️ Hors créneau — enregistré comme missed check-in",
+            "missed_checkin": "Hors créneau — enregistré comme missed check-in",
         }
 
        
@@ -662,8 +693,8 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
         db.commit()
 
         labels = {
-            "completed":       f"✅ Départ à {now.strftime('%H:%M')} — {duration}h travaillées",
-            "early_checkout":  f"⚠️ Départ anticipé à {now.strftime('%H:%M')} — {duration}h (visible sur dashboard)",
+            "completed":       f"Départ à {now.strftime('%H:%M')} — {duration}h travaillées",
+            "early_checkout":  f"Départ anticipé à {now.strftime('%H:%M')} — {duration}h (visible sur dashboard)",
             "missed_checkout": f"🔴 Hors créneau à {now.strftime('%H:%M')} — {duration}h travaillées",
         }
 
@@ -705,7 +736,7 @@ def create_department(
     """Create a new department (super_admin only)."""
     existing = db.query(Department).filter(Department.name == name.strip()).first()
     if existing:
-        raise HTTPException(status_code=409, detail=f"Le département '{name}' existe déjà.")
+        raise HTTPException(status_code=409, detail=f"Le service '{name}' existe déjà.")
     dept = Department(id=str(uuid.uuid4()), name=name.strip())
     db.add(dept)
     db.commit()
@@ -722,16 +753,16 @@ def delete_department(
     """Delete a department — blocked if interns are still assigned to it."""
     dept = db.query(Department).filter(Department.id == dept_id).first()
     if not dept:
-        raise HTTPException(status_code=404, detail="Département introuvable.")
+        raise HTTPException(status_code=404, detail="Service introuvable.")
     linked = db.query(Intern).filter(Intern.department_id == dept_id).count()
     if linked > 0:
         raise HTTPException(
             status_code=400,
-            detail=f"Impossible de supprimer : {linked} stagiaire(s) sont encore assignés à ce département.",
+            detail=f"Impossible de supprimer : {linked} stagiaire(s) sont encore assignés à ce service.",
         )
     db.delete(dept)
     db.commit()
-    return {"message": f"Département '{dept.name}' supprimé."}
+    return {"message": f"Service '{dept.name}' supprimé."}
  
  
 # ── EXCEL EXPORT ──────────────────────────────────────────────────────────────
@@ -961,12 +992,12 @@ def add_new_intern(
             detail="Seuls DFRI et Chef de Service peuvent ajouter des stagiaires"
         )
     
-    # Chef de Service can only add interns in their own department
+    # Chef de Service can only add interns in their own service
     if admin.role == AdminRole.CHEF_SERVICE.value:
         if intern_data.department_id != admin.department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Chef de Service ne peut ajouter des stagiaires que dans son département"
+                detail="Chef de Service ne peut ajouter des stagiaires que dans son service"
             )
     
     new_uuid = str(uuid.uuid4())
@@ -975,7 +1006,10 @@ def add_new_intern(
         first_name=intern_data.first_name,
         last_name=intern_data.last_name,
         department_id=intern_data.department_id,
+        start_date=_parse_optional_iso_date(intern_data.start_date, "date_debut"),
+        end_date=_parse_optional_iso_date(intern_data.end_date, "date_fin"),
     )
+    _validate_rotation_dates(new_intern.start_date, new_intern.end_date)
     try:
         db.add(new_intern)
         db.commit()
@@ -999,7 +1033,7 @@ def _generate_import_template():
     ws.title = "Stagiaires"
     
     # En-têtes
-    headers = ["prenom", "nom", "departement", "type_stagiaire", "ecole", "annee_etudes", "date_debut", "date_fin", "email"]
+    headers = ["prenom", "nom", "CIN", "service", "filiere", "universite", "annee_etudes", "date_debut", "date_fin", "email_institutionnel"]
     ws.append(headers)
     
     # Style des en-têtes
@@ -1011,20 +1045,17 @@ def _generate_import_template():
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
     
-    # Exemple de ligne
-    ws.append(["Jean", "Dupont", "Urgences", "Médecin", "Université de Marrakech", "4ème année", "2026-01-15", "2026-03-15", "jean.dupont@email.com"])
-    ws.append(["Marie", "Curie", "Pédiatrie", "Infirmier", "École d'Infirmiers", "2ème année", "2026-02-01", "2026-04-01", "marie.curie@email.com"])
-    
     # Largeurs de colonne
     ws.column_dimensions['A'].width = 15
     ws.column_dimensions['B'].width = 15
-    ws.column_dimensions['C'].width = 18
-    ws.column_dimensions['D'].width = 16
-    ws.column_dimensions['E'].width = 20
-    ws.column_dimensions['F'].width = 14
+    ws.column_dimensions['C'].width = 12
+    ws.column_dimensions['D'].width = 18
+    ws.column_dimensions['E'].width = 16
+    ws.column_dimensions['F'].width = 20
     ws.column_dimensions['G'].width = 14
     ws.column_dimensions['H'].width = 14
-    ws.column_dimensions['I'].width = 20
+    ws.column_dimensions['I'].width = 14
+    ws.column_dimensions['J'].width = 25
     
     # Retourner en mémoire
     stream = io.BytesIO()
@@ -1072,7 +1103,7 @@ async def validate_import_file(
         
         # Colonnes obligatoires (en minuscules)
         df.columns = df.columns.str.lower().str.strip()
-        required_cols = ['prenom', 'nom', 'departement']
+        required_cols = ['prenom', 'nom']
         
         errors_list = []
         valid_rows = []
@@ -1085,6 +1116,12 @@ async def validate_import_file(
                     "message": f"Colonne obligatoire manquante : '{col}'"
                 })
                 break
+        dept_col = 'service' if 'service' in df.columns else 'departement' if 'departement' in df.columns else None
+        if dept_col is None:
+            errors_list.append({
+                "row": 1,
+                "message": "Colonne obligatoire manquante : 'service'"
+            })
         
         if errors_list:
             return {
@@ -1094,7 +1131,7 @@ async def validate_import_file(
                 "preview_rows": []
             }
         
-        # Récupérer la liste des départements
+        # Récupérer la liste des services
         departments = db.query(Department).all()
         dept_map = {d.name.lower(): d for d in departments}
         
@@ -1103,7 +1140,7 @@ async def validate_import_file(
             row_num = idx + 2  # +1 pour Excel (0-indexed en python), +1 pour header
             prenom = str(row.get('prenom', '')).strip() if pd.notna(row.get('prenom')) else ''
             nom = str(row.get('nom', '')).strip() if pd.notna(row.get('nom')) else ''
-            departement = str(row.get('departement', '')).strip() if pd.notna(row.get('departement')) else ''
+            departement = str(row.get(dept_col, '')).strip() if dept_col and pd.notna(row.get(dept_col)) else ''
             
             # Ignorer les lignes vides
             if not prenom and not nom and not departement:
@@ -1117,7 +1154,7 @@ async def validate_import_file(
             if not nom:
                 row_errors.append("Nom de famille vide")
             if not departement:
-                row_errors.append("Département vide")
+                row_errors.append("Service vide")
             elif departement.lower() not in dept_map:
                 row_errors.append(f"Service '{departement}' inexistant (disponibles: {', '.join([d.name for d in departments])})")
             
@@ -1173,16 +1210,18 @@ async def import_file(
         
         # Déterminer le format
         if file.filename.endswith('.csv'):
-            df = pd.read_excel(io.BytesIO(contents), sheet_name=0, dtype=str)
+            df = pd.read_csv(io.BytesIO(contents), dtype=str)
         else:
             df = pd.read_excel(io.BytesIO(contents), sheet_name=0, dtype=str)
         
         # Normaliser les colonnes
         df.columns = df.columns.str.lower().str.strip()
         
-        # Récupérer les départements
+        # Récupérer les services
         departments = db.query(Department).all()
         dept_map = {d.name.lower(): d for d in departments}
+        
+        dept_col = 'service' if 'service' in df.columns else 'departement' if 'departement' in df.columns else None
         
         created_count = 0
         failed_rows = []
@@ -1192,7 +1231,7 @@ async def import_file(
             try:
                 prenom = str(row.get('prenom', '')).strip() if pd.notna(row.get('prenom')) else ''
                 nom = str(row.get('nom', '')).strip() if pd.notna(row.get('nom')) else ''
-                departement = str(row.get('departement', '')).strip() if pd.notna(row.get('departement')) else ''
+                departement = str(row.get(dept_col, '')).strip() if dept_col and pd.notna(row.get(dept_col)) else ''
                 
                 # Ignorer les lignes vides
                 if not prenom and not nom and not departement:
@@ -1207,7 +1246,7 @@ async def import_file(
                     failed_rows.append(idx + 2)
                     continue
                 
-                # Chef de Service peut seulement importer dans son département
+                # Chef de Service peut seulement importer dans son service
                 if admin.role == AdminRole.CHEF_SERVICE.value:
                     if dept_map[departement.lower()].id != admin.department_id:
                         failed_rows.append(idx + 2)
@@ -1267,12 +1306,12 @@ def delete_intern(
     if not intern:
         raise HTTPException(status_code=404, detail="Stagiaire non trouvé")
     
-    # Chef de Service can only delete interns in their own department
+    # Chef de Service can only delete interns in their own service
     if admin.role == AdminRole.CHEF_SERVICE.value:
         if intern.department_id != admin.department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Chef de Service ne peut supprimer que les stagiaires de son département"
+                detail="Chef de Service ne peut supprimer que les stagiaires de son service"
             )
     
     db.delete(intern)
@@ -1284,6 +1323,8 @@ class InternUpdate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     department_id: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 @app.patch("/interns/{intern_id}", tags=["Administration"])
@@ -1293,7 +1334,7 @@ def update_intern(
     db: Session = Depends(get_db),
     admin: Admin = Depends(get_current_admin),
 ):
-    """Update an intern's name and/or department."""
+    """Update an intern's name and/or service."""
     # Only DFRI and Chef de Service can update interns
     if admin.role not in (AdminRole.DFRI.value, AdminRole.CHEF_SERVICE.value):
         raise HTTPException(
@@ -1305,18 +1346,18 @@ def update_intern(
     if not intern:
         raise HTTPException(status_code=404, detail="Stagiaire non trouvé")
     
-    # Chef de Service can only edit interns in their own department
+    # Chef de Service can only edit interns in their own service
     if admin.role == AdminRole.CHEF_SERVICE.value:
         if intern.department_id != admin.department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Chef de Service ne peut modifier que les stagiaires de son département"
+                detail="Chef de Service ne peut modifier que les stagiaires de son service"
             )
-        # Chef cannot change the department
+        # Chef cannot change the service
         if payload.department_id is not None and payload.department_id != admin.department_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Chef de Service ne peut pas changer le département d'un stagiaire"
+                detail="Chef de Service ne peut pas changer le service d'un stagiaire"
             )
     
     if payload.first_name is not None:
@@ -1326,8 +1367,13 @@ def update_intern(
     if payload.department_id is not None:
         dept = db.query(Department).filter(Department.id == payload.department_id).first()
         if not dept:
-            raise HTTPException(status_code=404, detail="Département introuvable")
+            raise HTTPException(status_code=404, detail="Service introuvable")
         intern.department_id = payload.department_id
+    if payload.start_date is not None:
+        intern.start_date = _parse_optional_iso_date(payload.start_date, "date_debut")
+    if payload.end_date is not None:
+        intern.end_date = _parse_optional_iso_date(payload.end_date, "date_fin")
+    _validate_rotation_dates(intern.start_date, intern.end_date)
     db.commit()
     db.refresh(intern)
     return {
@@ -1336,6 +1382,8 @@ def update_intern(
         "first_name": intern.first_name,
         "last_name": intern.last_name,
         "department_id": intern.department_id,
+        "start_date": intern.start_date,
+        "end_date": intern.end_date,
     }
 
 
@@ -1353,7 +1401,7 @@ def update_department(
     """Rename a department."""
     dept = db.query(Department).filter(Department.id == dept_id).first()
     if not dept:
-        raise HTTPException(status_code=404, detail="Département introuvable")
+        raise HTTPException(status_code=404, detail="Service introuvable")
     new_name = payload.name.strip()
     if not new_name:
         raise HTTPException(status_code=400, detail="Le nom ne peut pas être vide")
@@ -1361,11 +1409,11 @@ def update_department(
         Department.name == new_name, Department.id != dept_id
     ).first()
     if conflict:
-        raise HTTPException(status_code=409, detail=f"Un département nommé '{new_name}' existe déjà")
+        raise HTTPException(status_code=409, detail=f"Un service nommé '{new_name}' existe déjà")
     dept.name = new_name
     db.commit()
     db.refresh(dept)
-    return {"message": f"Département renommé en '{new_name}'", "id": dept.id, "name": dept.name}
+    return {"message": f"Service renommé en '{new_name}'", "id": dept.id, "name": dept.name}
 
 
 # ── AUTH ENDPOINTS ────────────────────────────────────────────────────────────
@@ -1394,6 +1442,15 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     }
 
 
+@app.get("/auth/me", tags=["Authentication"])
+def auth_me(current: Admin = Depends(get_current_admin)):
+    return {
+        "username": current.username,
+        "role": current.role,
+        "department_id": current.department_id,
+    }
+
+
 @app.post("/auth/seed-admin", tags=["Authentication"])
 def seed_admin(db: Session = Depends(get_db)):
     any_admin = db.query(Admin).first()
@@ -1418,13 +1475,13 @@ def seed_admin(db: Session = Depends(get_db)):
 def create_admin(
     request: CreateAdminRequest,
     db: Session = Depends(get_db),
-    admin: Admin = Depends(require_super_admin)   # only super_admin can create accounts
+    admin: Admin = Depends(require_super_admin)   # only DFRI can create accounts
 ):
     """
-    Create a new admin or supervisor account.
-    - Only callable by a logged-in super_admin.
-    - Supervisors MUST have a department_id (UUID of their department).
-    - Super admins have department_id = None.
+    Create a new admin account with any of the 4 roles.
+    - Only callable by a logged-in DFRI admin.
+    - All roles MUST have a department_id (UUID of their department).
+    - Supported roles: dfri, directeur, chef_service, secretaire
     """
     # Validate role value
     try:
@@ -1435,19 +1492,15 @@ def create_admin(
             detail=f"Rôle invalide. Valeurs acceptées : {[r.value for r in AdminRole]}"
         )
 
-    # Supervisors must be linked to a department
-    if role == AdminRole.SUPERVISOR and not request.department_id:
+    # Chef de Service must have a department_id
+    if role == AdminRole.CHEF_SERVICE and not request.department_id:
         raise HTTPException(
             status_code=400,
-            detail="Un superviseur doit être assigné à un département"
+            detail="Un Chef de Service doit être assigné à un service"
         )
 
-    # Super admins must NOT have a department (they see everything)
-    if role == AdminRole.SUPER_ADMIN and request.department_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Un super admin ne peut pas être lié à un département spécifique"
-        )
+    # Other roles don't use department_id
+    department_id = request.department_id if role == AdminRole.CHEF_SERVICE else None
 
     # Check username uniqueness
     existing = db.query(Admin).filter(Admin.username == request.username).first()
@@ -1457,29 +1510,29 @@ def create_admin(
             detail=f"Le nom d'utilisateur '{request.username}' est déjà pris"
         )
 
-    # Verify department exists (for supervisors)
-    if request.department_id:
-        dept = db.query(Department).filter(Department.id == request.department_id).first()
+    # Verify department exists (only for chef_service)
+    if department_id:
+        dept = db.query(Department).filter(Department.id == department_id).first()
         if not dept:
             raise HTTPException(
                 status_code=404,
-                detail="Département introuvable — vérifiez l'UUID"
+                detail="Service introuvable — vérifiez l'UUID"
             )
 
     new_admin = Admin(
         username=request.username,
         hashed_password=hash_password(request.password),
         role=role.value,
-        department_id=request.department_id
+        department_id=department_id
     )
     db.add(new_admin)
     db.commit()
 
     return {
-        "message":       f" Compte '{request.username}' créé avec succès",
+        "message":       f"✅ Compte '{request.username}' créé avec succès",
         "username":      request.username,
         "role":          role.value,
-        "department_id": request.department_id,
+        "department_id": department_id,
     }
 
 

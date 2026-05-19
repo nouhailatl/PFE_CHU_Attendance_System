@@ -135,8 +135,8 @@ def sheet_pointages(wb, df_interns, df_daily):
     merged["work_duration"]  = merged["work_duration"].round(2).fillna(0)
     merged = merged.sort_values(["date","name"], ascending=[False, True])
 
-    headers = ["Date", "Stagiaire", "Département", "Arrivée", "Départ",
-               "Durée (h)", "Statut Check-in", "Statut Check-out", "⚠️ Attention"]
+    headers = ["Date", "Stagiaire", "Service", "Arrivée", "Départ",
+               "Durée (h)", "Statut Check-in", "Statut Check-out", "Attention"]
     for col_i, h in enumerate(headers, 1):
         ws.cell(row=1, column=col_i, value=h)
     style_header_row(ws, 1, len(headers))
@@ -148,7 +148,7 @@ def sheet_pointages(wb, df_interns, df_daily):
             row["arrival_time"], row["departure_time"],
             row["work_duration"], row.get("checkin_status","—"),
             row.get("checkout_status","—"),
-            "⚠️" if row.get("needs_attention") else "✅"
+            "Alerte" if row.get("needs_attention") else "OK"
         ]
         for col_i, val in enumerate(values, 1):
             ws.cell(row=row_i, column=col_i, value=val)
@@ -168,7 +168,7 @@ def sheet_resume(wb, df_interns, df_daily):
     ws = wb.create_sheet("Résumé Stagiaires")
     ws.sheet_view.showGridLines = False
 
-    headers = ["Stagiaire", "Département", "Jours Présents", "Jours Absents",
+    headers = ["Stagiaire", "Service", "Jours Présents", "Jours Absents",
                "Taux Présence (%)", "Durée Totale (h)", "Durée Moy./Jour (h)",
                "Retards", "Départs Anticipés", "Score Risque"]
     for col_i, h in enumerate(headers, 1):
@@ -207,7 +207,7 @@ def sheet_departements(wb, df_interns, df_daily):
     ws = wb.create_sheet("Résumé Départements")
     ws.sheet_view.showGridLines = False
 
-    headers = ["Département", "Nb Stagiaires", "Taux Présence Moy. (%)",
+    headers = ["Service", "Nb Stagiaires", "Taux Présence Moy. (%)",
                "Total Heures", "Nb Alertes"]
     for col_i, h in enumerate(headers, 1):
         ws.cell(row=1, column=col_i, value=h)
@@ -231,11 +231,11 @@ def sheet_departements(wb, df_interns, df_daily):
 
     auto_width(ws)
 
-    # Bar chart — taux de présence par département
+    # Bar chart — taux de présence par service
     if wb["Résumé Départements"].max_row > 2:
         chart = BarChart()
         chart.type   = "col"
-        chart.title  = "Taux de présence par département"
+        chart.title  = "Taux de présence par service"
         chart.y_axis.title = "%"
         chart.style  = 10
         n = wb["Résumé Départements"].max_row - 1
@@ -255,7 +255,7 @@ def sheet_alertes(wb, df_interns, df_daily):
 
     alerts = df_daily[df_daily["needs_attention"] == True].copy()
     if alerts.empty:
-        ws["A1"] = "✅ Aucune alerte détectée"
+        ws["A1"] = "Aucune alerte détectée"
         return
 
     alerts = alerts.merge(df_interns[["id","name","department"]],
@@ -263,7 +263,7 @@ def sheet_alertes(wb, df_interns, df_daily):
     alerts["date"] = pd.to_datetime(alerts["date"]).dt.strftime("%Y-%m-%d")
     alerts = alerts.sort_values("date", ascending=False)
 
-    headers = ["Date", "Stagiaire", "Département", "Statut", "Check-in", "Check-out"]
+    headers = ["Date", "Stagiaire", "Service", "Statut", "Check-in", "Check-out"]
     for col_i, h in enumerate(headers, 1):
         ws.cell(row=1, column=col_i, value=h)
     style_header_row(ws, 1, len(headers), bg="C62828")
