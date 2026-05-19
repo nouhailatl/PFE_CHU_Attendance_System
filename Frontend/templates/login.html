@@ -1,0 +1,84 @@
+<!doctype html>
+<html class="dark" lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Connexion GST-TTA</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+  </head>
+  <body>
+    <div id="login-overlay" class="login-page">
+      <div class="login-left">
+        <div class="login-branding">
+          <p class="login-brand-eyebrow">
+            Groupe sanitaire territorial · Accès supervisé sécurisé
+          </p>
+          <div class="login-logo-well">
+            <img
+              class="login-brand-logo-img"
+              src="{{ url_for('static', filename='img/gst_logo_login.png') }}"
+              alt="Logo - Groupe sanitaire territorial TTA"
+            />
+          </div>
+          <div class="login-brand-copy">
+            <h1>GST-TTA <em>Analytics</em></h1>
+            <p>
+              Plateforme de suivi en temps réel pour les stagiaires hospitaliers.
+              Gérez la présence, identifiez les risques et optimisez l'efficacité
+              de vos services.
+            </p>
+          </div>
+          <div class="badge-live">
+            <div class="dot"></div>
+            <span>Live Monitoring</span>
+          </div>
+        </div>
+        <svg class="login-wave" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path d="M0 0 C 30 20, 70 80, 100 100 L 100 0 Z" />
+          <path d="M0 0 C 40 40, 60 60, 100 100 L 0 100 Z" fill="#45f1c3" opacity=".15" />
+        </svg>
+      </div>
+      <div class="login-right">
+        <form class="login-form-wrap" id="login-form">
+          <h2>Accès sécurisé</h2>
+          <p>Entrez vos identifiants pour accéder au tableau de bord.</p>
+          <div id="login-error" class="login-error"></div>
+          <div class="field">
+            <label for="inp-username">Identifiant</label>
+            <div class="input-wrap">
+              <span class="material-symbols-outlined icon">person</span>
+              <input
+                type="text"
+                id="inp-username"
+                placeholder="admin"
+                autocomplete="username"
+              />
+            </div>
+          </div>
+          <div class="field">
+            <label for="inp-password">Mot de passe</label>
+            <div class="input-wrap">
+              <span class="material-symbols-outlined icon">lock</span>
+              <input
+                type="password"
+                id="inp-password"
+                placeholder="••••••••"
+                autocomplete="current-password"
+              />
+            </div>
+          </div>
+          <button class="btn-login" id="btn-login" type="submit">
+            <span>Se connecter</span>
+            <span class="material-symbols-outlined" style="font-size: 18px">arrow_forward</span>
+          </button>
+          <div class="login-footer"><p>© 2026 DFRI · GST-TTA</p></div>
+        </form>
+      </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+  </body>
+</html>

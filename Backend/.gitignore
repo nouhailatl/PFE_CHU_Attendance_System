@@ -1,0 +1,22 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+
+.env
+
+# VS Code
+.vscode/
+
+
+key.pem
+cert.pem
+*.db
+.ipynb_checkpoints/
+etl/features.csv
+get-pip.py
+dashboard-v1.html

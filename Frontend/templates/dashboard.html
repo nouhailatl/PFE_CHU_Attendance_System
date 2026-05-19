@@ -1,0 +1,155 @@
+<!doctype html>
+<html class="dark" lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GST TTA & STS</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Badge generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+  </head>
+  <body>
+    <!-- APP -->
+    <div id="app" class="visible">
+      <!-- SIDEBAR -->
+      <aside id="sidebar">
+        <div class="sidebar-logo">
+          <div class="sidebar-logo-icon">
+            <img src="{{ url_for('static', filename='img/gst_logo_login.png') }}" alt="Logo" />
+          </div>
+          <div class="sidebar-logo-text">
+            GST-TTA Analytics <span>Plateforme de gestion des stagiaires</span>
+          </div>
+        </div>
+        <div id="user-card" class="user-card">
+          <div class="user-avatar" id="user-avatar">A</div>
+          <div class="user-info">
+            <strong id="user-name">Admin</strong>
+            <span id="user-role">Super Admin</span>
+          </div>
+        </div>
+        <div class="sidebar-section-label">Navigation</div>
+        <nav id="nav-links"></nav>
+        <div style="margin-top: auto">
+          <div class="sidebar-divider"></div>
+          <button class="btn-logout" onclick="switchView('about')" title="À propos de la plateforme">
+            <span class="material-symbols-outlined">info</span> À propos
+          </button>
+          <button class="btn-logout" onclick="doLogout()">
+            <span class="material-symbols-outlined">logout</span> Déconnexion
+          </button>
+          <div class="sidebar-footer"><p>© 2026 DFRI · GST-TTA</p></div>
+        </div>
+      </aside>
+
+      <!-- TOPBAR -->
+      <header id="topbar">
+        <div class="topbar-title" id="topbar-title">Vue Globale</div>
+        <div class="topbar-right">
+          <!-- Last refresh indicator -->
+          <div
+            class="topbar-refresh-time"
+            id="refresh-indicator"
+            title="Dernière actualisation des données"
+          >
+            Actualisé <span id="last-refresh-time">—</span>
+          </div>
+
+          <!-- Refresh button -->
+          <button
+            class="btn-refresh"
+            id="btn-refresh"
+            onclick="refreshData()"
+            title="Actualiser les données"
+          >
+            <span class="material-symbols-outlined">refresh</span>
+          </button>
+
+          <!-- Alert bell -->
+          <button
+            class="topbar-alert-bell"
+            onclick="switchView('alerts')"
+            title="Journal des alertes"
+            id="topbar-bell"
+          >
+            <span class="material-symbols-outlined">notifications</span>
+            <div class="alert-count hidden" id="topbar-alert-count">0</div>
+          </button>
+
+          <!-- Excel export -->
+          <button
+            class="btn-excel"
+            onclick="exportExcel()"
+            id="btn-excel-export"
+            title="Exporter les données en Excel"
+          >
+            <span class="material-symbols-outlined">table_view</span>
+            <span>Exporter Excel</span>
+          </button>
+
+          <!-- Live badge -->
+          <div class="topbar-badge">
+            <div class="dot"></div>
+            <span>Live</span>
+          </div>
+
+          <!-- Fullscreen -->
+          <button
+            class="btn-fullscreen"
+            onclick="toggleFullscreen()"
+            id="btn-fullscreen"
+            title="Plein ?cran"
+          >
+            <span class="material-symbols-outlined" id="fullscreen-icon"
+              >fullscreen</span
+            >
+          </button>
+
+          <div class="topbar-time" id="topbar-time"></div>
+        </div>
+      </header>
+
+      <!-- MAIN -->
+      <main id="main">
+        <div id="view-container"></div>
+      </main>
+    </div>
+
+    <!-- MODAL -->
+    <div id="modal-overlay">
+      <div id="modal-box">
+        <h3 id="modal-title"></h3>
+        <p id="modal-desc"></p>
+        <div id="modal-body"></div>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
+          "
+          id="modal-actions"
+        ></div>
+      </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast-container"></div>
+
+    <!-- Hidden QR render target for badge PDF generation -->
+    <div id="qr-hidden"></div>
+
+    <script>window.CHU_AUTH = {{ auth|tojson }};</script>
+    {% for script_name in dashboard_scripts %}
+    <script src="{{ url_for('dashboard_script', filename=script_name) }}"></script>
+    {% endfor %}
+  </body>
+</html>
+
+

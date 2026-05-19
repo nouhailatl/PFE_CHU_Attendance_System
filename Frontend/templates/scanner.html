@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <title>CHU · Pointage Stagiaires</title>
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/scanner.css') }}" />
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <div class="logo-badge">
+          <div class="dot"></div>
+          <span>CHU · Système de Pointage</span>
+        </div>
+        <h1>Scanner QR<br /><em>Stagiaires</em></h1>
+        <p class="subtitle">Pointage automatique par QR code</p>
+      </header>
+
+      <!-- CAMERA -->
+      <div class="camera-wrap">
+        <div id="camIdle">
+          <div class="idle-icon">📷</div>
+          <p>Appuyez sur Démarrer</p>
+        </div>
+        <div id="reader"></div>
+        <div id="viewfinder">
+          <div class="vf-box">
+            <span></span>
+            <div class="scan-line"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Camera selector (shown when multiple cameras are available) -->
+      <div class="cam-select-wrap" id="camSelectWrap" style="display: none">
+        <span class="cam-label">Caméra :</span>
+        <select id="camSelect"></select>
+      </div>
+
+      <!-- BUTTONS -->
+      <div class="btn-row">
+        <button class="btn btn-start" id="btnStart" onclick="startScanner()">
+          ▶ Démarrer
+        </button>
+        <button
+          class="btn btn-stop"
+          id="btnStop"
+          onclick="stopScanner()"
+          disabled
+        >
+          ⏹ Arrêter
+        </button>
+      </div>
+
+      <!-- STATUS -->
+      <div class="status-panel" id="statusPanel">
+        <div class="status-icon" id="statusIcon">💤</div>
+        <div>
+          <div class="status-label" id="statusLabel">Caméra</div>
+          <div class="status-message" id="statusMsg">
+            En veille — appuyez sur Démarrer
+          </div>
+        </div>
+      </div>
+
+      <!-- RESULT -->
+      <div class="result-card" id="resultCard"></div>
+
+      <footer>CHU · Plateforme de Stage · v1.0</footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+  </body>
+</html>
+
+

@@ -1,0 +1,40 @@
+# ── Web API ───────────────────────────────────────────────
+fastapi
+uvicorn
+
+# ── Database ──────────────────────────────────────────────
+sqlalchemy
+
+# ── Data validation ───────────────────────────────────────
+pydantic
+
+# ── ETL pipeline (etl/transform.py) ───────────────────────
+pandas          # required for all DataFrame operations
+
+# ── QR code & badge generation (generate_qr.py) ───────────
+qrcode
+reportlab
+pillow          # required by qrcode for image generation (make_image())
+
+# ── Timezone (main.py) ────────────────────────────────────
+# zoneinfo is stdlib in Python >= 3.9 — no install needed.
+# pytz is the fallback for older Python versions.
+#pytz            # fallback timezone support
+
+# PostgreSQL support (for production deployment)
+psycopg2-binary
+python-dotenv
+
+# JWT
+python-jose[cryptography]    # JWT creation & verification
+passlib[bcrypt]              # password hashing
+#excel
+openpyxl
+
+# ML 
+scikit-learn
+joblib
+matplotlib
+imbalanced-learn
+
+apscheduler
