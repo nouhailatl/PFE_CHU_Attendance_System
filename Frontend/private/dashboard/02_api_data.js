@@ -18,7 +18,7 @@
           try {
             data = JSON.parse(text);
           } catch (error) {
-            throw new Error(`${label}: r?ponse non JSON (${res.status}) - ${text.slice(0, 120)}`);
+            throw new Error(`${label}: réponse non JSON (${res.status}) - ${text.slice(0, 120)}`);
           }
         }
         if (!res.ok) {

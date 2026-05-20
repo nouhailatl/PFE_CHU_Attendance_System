@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey, Float, Boolean, Integer, text
+from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey, Float, Boolean, Integer, Text, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 import uuid
 from datetime import datetime
@@ -89,9 +89,43 @@ class Admin(Base):
     __tablename__ = "admins"
     id              = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     username        = Column(String, unique=True, nullable=False)
+    email           = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
     role            = Column(String, nullable=False)
     department_id   = Column(String, ForeignKey("departments.id"), nullable=True)
+
+
+class NotificationSetting(Base):
+    __tablename__ = "notification_settings"
+    id = Column(String, primary_key=True, default="default")
+    enabled = Column(Boolean, default=False, server_default="0")
+    channel = Column(String, default="email")
+    recipient_email = Column(String, nullable=True)
+    webhook_url = Column(Text, nullable=True)
+    smtp_host = Column(String, nullable=True)
+    smtp_port = Column(Integer, nullable=True)
+    smtp_username = Column(String, nullable=True)
+    smtp_password = Column(String, nullable=True)
+    smtp_from_email = Column(String, nullable=True)
+    absence_days = Column(Integer, default=3, server_default="3")
+    stage_end_hours = Column(Integer, default=48, server_default="48")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class NotificationLog(Base):
+    __tablename__ = "notification_logs"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    event_type = Column(String, nullable=False)
+    intern_id = Column(String, ForeignKey("interns.id"), nullable=True)
+    department_id = Column(String, ForeignKey("departments.id"), nullable=True)
+    dedupe_key = Column(String, unique=True, nullable=False)
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    channel = Column(String, nullable=False)
+    recipient = Column(Text, nullable=True)
+    status = Column(String, nullable=False, default="pending")
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 Base.metadata.create_all(bind=engine)

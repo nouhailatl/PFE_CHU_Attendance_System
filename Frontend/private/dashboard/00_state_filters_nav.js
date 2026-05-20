@@ -16,6 +16,9 @@
         secretaire:   "Secrétaire"
       };
 
+      const FILIERE_OPTIONS = ["Médecine générale", "Pharmacie", "Infirmerie"];
+      const ETABLISSEMENT_OPTIONS = ["ISPITS", "Médecine"];
+
       // ── STATE ───────────────────────────────────────────────────────────────
       let AUTH = null;
       let CURRENT_VIEW = "global";
@@ -128,10 +131,10 @@
       }
 
       function getFilterOptions() {
-        const interns = getBaseInterns();
-        const types = Array.from(new Set(interns.map((i) => normalizeFilterValue(getInternType(i))).filter((v) => v))).sort();
-        const schools = Array.from(new Set(interns.map((i) => normalizeFilterValue(getInternSchool(i))).filter((v) => v))).sort();
-        return { types, schools };
+        return {
+          types: FILIERE_OPTIONS,
+          schools: ETABLISSEMENT_OPTIONS,
+        };
       }
 
       function renderFilterBar() {
@@ -139,14 +142,14 @@
         return `
           <div class="filter-bar" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px">
             <div style="min-width:180px;flex:1;max-width:260px">
-              <label class="form-label" style="margin-bottom:4px">Type de stagiaire</label>
+              <label class="form-label" style="margin-bottom:4px">Filière</label>
               <select id="filter-type" class="form-control" onchange="onFilterChange()">
                 <option value="">Toutes</option>
                 ${types.map((t) => `<option value="${t}" ${FILTERS.type === t ? "selected" : ""}>${t}</option>`).join("")}
               </select>
             </div>
             <div style="min-width:180px;flex:1;max-width:260px">
-              <label class="form-label" style="margin-bottom:4px">École</label>
+              <label class="form-label" style="margin-bottom:4px">Établissement</label>
               <select id="filter-school" class="form-control" onchange="onFilterChange()">
                 <option value="">Toutes</option>
                 ${schools.map((s) => `<option value="${s}" ${FILTERS.school === s ? "selected" : ""}>${s}</option>`).join("")}
@@ -205,4 +208,3 @@
         { id: "admin", label: "Administration", icon: "manage_accounts", roles: ["dfri", "chef_service"] },
         { id: "audit", label: "Journal d'Audit", icon: "history", roles: ["dfri", "directeur"] }
       ];
-

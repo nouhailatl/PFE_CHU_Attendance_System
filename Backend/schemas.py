@@ -20,6 +20,7 @@ class CreateAdminRequest(BaseModel):
      password: str
      role: str                    # "dfri" | "directeur" | "chef_service" | "secretaire"
      department_id: str | None    # required only if role == "chef_service"
+     email: str | None = None
 
 class ChangePasswordRequest(BaseModel):
      current_password: str

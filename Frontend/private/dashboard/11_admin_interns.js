@@ -104,10 +104,7 @@
                         <span class="material-symbols-outlined">person_add</span> Enregistrer
                       </button>
                       ${depts.length === 0 ? '<div class="alert alert-warn" style="margin-top:12px"><span class="material-symbols-outlined" style="font-size:16px">warning</span> Créez d\'abord un service dans l\'onglet Services.</div>' : ""}
-                      <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
-                        <div style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-f);margin-bottom:4px">ℹ Modifier un stagiaire</div>
-                        <p style="font-size:12px;color:var(--text-m)">Cliquez ✏️ sur une ligne pour modifier le nom ou le service. Confirmez avec ✓ ou annulez avec ✕. Vous pouvez aussi double-cliquer sur le nom.</p>
-                      </div>
+
                     </div>
                   </div>
                 </div>`;

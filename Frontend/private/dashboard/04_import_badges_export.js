@@ -450,13 +450,26 @@
           "Présent": "badge-green",
           Retard: "badge-orange",
         };
-        return `<span class="badge ${map[label] || "badge-grey"}">${label.replace("_", " ")}</span>`;
+        return `<span class="badge ${map[label] || "badge-grey"}">${statusLabel(label)}</span>`;
+      }
+      function statusLabel(status) {
+        const labels = {
+          on_time: "Présent",
+          late: "Retard",
+          missed_checkin: "Pointage d'arrivée manqué",
+          absent: "Absent",
+          early_checkout: "Départ anticipé",
+          missed_checkout: "Pointage de départ manqué",
+          completed: "Présence complète",
+        };
+        return labels[status] || String(status || "—").replaceAll("_", " ");
       }
       function statusBadge(status, need_att) {
         if (need_att)
-          return `<span class="badge badge-red">âš  ${status || "alerte"}</span>`;
+          return `<span class="badge badge-red">⚠ ${statusLabel(status || "alerte")}</span>`;
         return riskBadge(status);
       }
+
       function fmtTime(iso) {
         if (!iso) return "—";
         try {

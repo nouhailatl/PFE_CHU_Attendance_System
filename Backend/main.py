@@ -49,7 +49,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
-from database import SessionLocal, Intern, DailyStatus, Department, Admin, engine
+from database import SessionLocal, Intern, DailyStatus, Department, Admin, NotificationSetting, NotificationLog, engine
 from schemas import LoginRequest, InternCreate, CreateAdminRequest, ChangePasswordRequest
 from auth import (                        
     get_current_admin,
@@ -74,6 +74,9 @@ from openpyxl.styles import Font, PatternFill, Alignment
 import io
 from apscheduler.schedulers.background import BackgroundScheduler
 from contextlib import asynccontextmanager
+import json
+import smtplib
+from email.message import EmailMessage
 
 from excel_export import export_to_excel
 import threading
@@ -96,6 +99,17 @@ def _ensure_intern_rotation_columns():
     print(f"Intern rotation columns added: {', '.join(missing)}")
 
 
+def _ensure_admin_email_column():
+    """Add email column to existing admin tables."""
+    inspector = inspect(engine)
+    existing = {col["name"] for col in inspector.get_columns("admins")}
+    if "email" in existing:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE admins ADD COLUMN email VARCHAR"))
+    print("Admin email column added")
+
+
 def _parse_optional_iso_date(value: str | None, field_name: str) -> str | None:
     if value in (None, ""):
         return None
@@ -113,12 +127,239 @@ def _validate_rotation_dates(start_date: str | None, end_date: str | None):
 # ── APSCHEDULER SETUP ──────────────────────────────────────────────────────────
 # Nightly workflow scheduler — runs Mon–Fri only
 
+class NotificationSettingsPayload(BaseModel):
+    enabled: bool = False
+    smtp_host: str | None = None
+    smtp_port: int | None = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    absence_days: int = 3
+    stage_end_hours: int = 48
+
+
 scheduler = BackgroundScheduler()
 
 
 def _should_run_today() -> bool:
     """Return True only if today is Mon–Fri (0=Mon, 6=Sun)."""
     return now_local().weekday() < 5  # 0-4 = Mon-Fri
+
+
+def _get_notification_settings(db: Session) -> NotificationSetting:
+    settings = db.query(NotificationSetting).filter(NotificationSetting.id == "default").first()
+    if settings:
+        return settings
+    settings = NotificationSetting(id="default", enabled=False, channel="email", absence_days=3, stage_end_hours=48)
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return settings
+
+
+def _notification_settings_dict(settings: NotificationSetting, include_secret: bool = False) -> dict:
+    return {
+        "enabled": bool(settings.enabled),
+        "channel": "email",
+        "smtp_host": settings.smtp_host or "",
+        "smtp_port": settings.smtp_port or 587,
+        "smtp_username": settings.smtp_username or "",
+        "smtp_password": settings.smtp_password if include_secret else "",
+        "smtp_from_email": settings.smtp_from_email or "",
+        "absence_days": settings.absence_days or 3,
+        "stage_end_hours": settings.stage_end_hours or 48,
+    }
+
+
+def _working_days_ending(target_date: date_type, count: int) -> list[date_type]:
+    days = []
+    cursor = target_date
+    while len(days) < count:
+        if cursor.weekday() < 5:
+            days.append(cursor)
+        cursor -= timedelta(days=1)
+    return list(reversed(days))
+
+
+def _has_status_on_date(db: Session, intern_id: str, target_date: date_type, status_value: str) -> bool:
+    day_start = datetime(target_date.year, target_date.month, target_date.day)
+    day_end = day_start + timedelta(days=1)
+    return db.query(DailyStatus.id).filter(
+        DailyStatus.intern_id == intern_id,
+        DailyStatus.date >= day_start,
+        DailyStatus.date < day_end,
+        DailyStatus.status == status_value,
+    ).first() is not None
+
+
+def _department_name_map(db: Session) -> dict[str, str]:
+    return {d.id: d.name for d in db.query(Department).all()}
+
+
+def _admin_email(admin: Admin | None) -> str | None:
+    if not admin:
+        return None
+    if getattr(admin, "email", None):
+        return admin.email
+    return admin.username if "@" in (admin.username or "") else None
+
+
+def _dfri_email(db: Session) -> str | None:
+    admin = db.query(Admin).filter(Admin.role == AdminRole.DFRI.value, Admin.email != None).first()  # noqa: E711
+    if admin:
+        return admin.email
+    admin = db.query(Admin).filter(Admin.role == AdminRole.DFRI.value).first()
+    return _admin_email(admin)
+
+
+def _chef_service_email(db: Session, department_id: str | None) -> str | None:
+    if not department_id:
+        return None
+    admin = db.query(Admin).filter(
+        Admin.role == AdminRole.CHEF_SERVICE.value,
+        Admin.department_id == department_id,
+        Admin.email != None,  # noqa: E711
+    ).first()
+    if admin:
+        return admin.email
+    admin = db.query(Admin).filter(
+        Admin.role == AdminRole.CHEF_SERVICE.value,
+        Admin.department_id == department_id,
+    ).first()
+    return _admin_email(admin)
+
+
+def _collect_notification_events(db: Session, target_date: date_type | None = None) -> list[dict]:
+    target_date = target_date or now_local().date()
+    settings = _get_notification_settings(db)
+    absence_days = max(int(settings.absence_days or 3), 1)
+    stage_end_hours = max(int(settings.stage_end_hours or 48), 1)
+    departments = _department_name_map(db)
+    interns = db.query(Intern).filter((Intern.archived == False) | (Intern.archived == None)).all()  # noqa: E712,E711
+    events = []
+
+    absence_window = _working_days_ending(target_date, absence_days)
+    for intern in interns:
+        full_name = f"{intern.first_name} {intern.last_name}".strip()
+        dept_name = departments.get(intern.department_id, "Service inconnu")
+        if all(_has_status_on_date(db, intern.id, day, "absent") for day in absence_window):
+            recipient = _chef_service_email(db, intern.department_id)
+            events.append({
+                "event_type": "absence_consecutive",
+                "intern_id": intern.id,
+                "department_id": intern.department_id,
+                "recipient": recipient,
+                "dedupe_key": f"absence_consecutive:{intern.id}:{absence_window[-1]}:{absence_days}",
+                "title": f"Absence consecutive - {full_name}",
+                "message": f"{full_name} est absent depuis {absence_days} jours ouvrables consecutifs dans le service {dept_name}. Cette alerte est destinee au chef de service.",
+            })
+
+        if intern.end_date:
+            try:
+                end_date = date_type.fromisoformat(intern.end_date)
+            except ValueError:
+                end_date = None
+            if end_date:
+                hours_left = (datetime(end_date.year, end_date.month, end_date.day, 23, 59, tzinfo=TZ) - now_local()).total_seconds() / 3600
+                if 0 <= hours_left <= stage_end_hours:
+                    recipient = _dfri_email(db)
+                    events.append({
+                        "event_type": "stage_ending",
+                        "intern_id": intern.id,
+                        "department_id": intern.department_id,
+                        "recipient": recipient,
+                        "dedupe_key": f"stage_ending:{intern.id}:{intern.end_date}",
+                        "title": f"Stage a confirmer - {full_name}",
+                        "message": f"Le stage de {full_name} se termine le {intern.end_date} dans le service {dept_name}. Verifiez la prolongation ou l'archivage.",
+                    })
+
+        if intern.start_date:
+            try:
+                start_date = date_type.fromisoformat(intern.start_date)
+            except ValueError:
+                start_date = None
+            if start_date == target_date + timedelta(days=1):
+                recipient = _chef_service_email(db, intern.department_id)
+                events.append({
+                    "event_type": "rotation_tomorrow",
+                    "intern_id": intern.id,
+                    "department_id": intern.department_id,
+                    "recipient": recipient,
+                    "dedupe_key": f"rotation_tomorrow:{intern.id}:{intern.start_date}",
+                    "title": f"Rotation demain - {full_name}",
+                    "message": f"{full_name} commence une rotation demain ({intern.start_date}) dans le service {dept_name}.",
+                })
+
+    return events
+
+
+def _send_email_notification(settings: NotificationSetting, recipient_email: str | None, title: str, message: str):
+    if not recipient_email:
+        raise RuntimeError("Aucun email destinataire configure")
+    if not settings.smtp_host:
+        raise RuntimeError("Serveur SMTP non configure")
+
+    email = EmailMessage()
+    email["Subject"] = title
+    email["From"] = settings.smtp_from_email or settings.smtp_username or recipient_email
+    email["To"] = recipient_email
+    email.set_content(message)
+
+    port = int(settings.smtp_port or 587)
+    with smtplib.SMTP(settings.smtp_host, port, timeout=15) as smtp:
+        smtp.starttls()
+        if settings.smtp_username:
+            smtp.login(settings.smtp_username, settings.smtp_password or "")
+        smtp.send_message(email)
+
+
+def _dispatch_notification(settings: NotificationSetting, recipient_email: str | None, title: str, message: str) -> tuple[str, str | None, str]:
+    try:
+        _send_email_notification(settings, recipient_email, title, message)
+        return "sent", None, recipient_email or ""
+    except Exception as exc:
+        return "error", str(exc), recipient_email or ""
+
+
+def _run_notification_job_for_date(target_date: date_type, db: Session, force_send: bool = False) -> dict:
+    settings = _get_notification_settings(db)
+    events = _collect_notification_events(db, target_date)
+    result = {"date": str(target_date), "detected": len(events), "sent": 0, "skipped": 0, "errors": 0}
+
+    if not settings.enabled and not force_send:
+        return {**result, "message": "Notifications desactivees"}
+
+    for event in events:
+        existing = db.query(NotificationLog).filter(NotificationLog.dedupe_key == event["dedupe_key"]).first()
+        if existing and not force_send:
+            result["skipped"] += 1
+            continue
+
+        if force_send:
+            event["dedupe_key"] = f"{event['dedupe_key']}:manual:{uuid.uuid4()}"
+
+        status_value, error, recipient = _dispatch_notification(settings, event.get("recipient"), event["title"], event["message"])
+        db.add(NotificationLog(
+            id=str(uuid.uuid4()),
+            event_type=event["event_type"],
+            intern_id=event["intern_id"],
+            department_id=event["department_id"],
+            dedupe_key=event["dedupe_key"],
+            title=event["title"],
+            message=event["message"],
+            channel="email",
+            recipient=recipient,
+            status=status_value,
+            error=error,
+            created_at=datetime.utcnow(),
+        ))
+        if status_value == "error":
+            result["errors"] += 1
+        else:
+            result["sent"] += 1
+
+    db.commit()
+    return result
 
 
 def _auto_close_checkouts_for_date(target_date: date_type, db: Session) -> dict:
@@ -240,6 +481,17 @@ def _run_mark_absences_job():
         db.close()
 
 
+def _run_notifications_job():
+    """Scheduled job: send configured automatic alerts after attendance cleanup."""
+    if not _should_run_today():
+        return
+    db = SessionLocal()
+    try:
+        _run_notification_job_for_date(now_local().date(), db)
+    finally:
+        db.close()
+
+
 def _run_etl_ml_job():
     """Scheduled job: Run ETL + ML retraining at 23:30 on weekdays. Records run date."""
     if not _should_run_today():
@@ -333,6 +585,12 @@ def _run_pipeline_for_date(target_date: date_type, db: Session) -> dict:
     except Exception as e:
         results["step2_mark_absences"] = {"error": str(e)}
 
+    # Step 3: Send automatic notifications
+    try:
+        results["step3_notifications"] = _run_notification_job_for_date(target_date, db)
+    except Exception as e:
+        results["step3_notifications"] = {"error": str(e)}
+
     # Step 3: ETL
     try:
         etl_result = subprocess.run(
@@ -415,11 +673,13 @@ async def lifespan(app: FastAPI):
     """FastAPI lifespan: start scheduler on startup, stop on shutdown."""
     # ── Startup ───────────────────────────────────────────────────────
     _ensure_intern_rotation_columns()
+    _ensure_admin_email_column()
     scheduler.add_job(_run_auto_close_job, "cron", hour=23, minute=0, id="auto_close")
     scheduler.add_job(_run_mark_absences_job, "cron", hour=23, minute=5, id="mark_absences")
+    scheduler.add_job(_run_notifications_job, "cron", hour=23, minute=10, id="notifications")
     scheduler.add_job(_run_etl_ml_job, "cron", hour=23, minute=30, id="etl_ml")
     scheduler.start()
-    print("APScheduler started — nightly jobs scheduled for 23:00, 23:05, 23:30")
+    print("APScheduler started - nightly jobs scheduled for 23:00, 23:05, 23:10, 23:30")
 
     # ── CATCH-UP: Check if nightly pipeline was missed ────────────────
     db = SessionLocal()

@@ -5,8 +5,8 @@
         if (isChefService()) {
           depts = depts.filter((d) => d.id === AUTH.department_id);
         }
-        const interns = getVisibleInterns();
-        const history = getVisibleHistory();
+        const interns = getBaseInterns();
+        const history = getHistoryForInterns(interns);
         const deptStats = depts.map((d) => {
           const dInterns = interns.filter((i) => i.department_id === d.id);
           const ids = dInterns.map((i) => i.id);
@@ -34,7 +34,6 @@
         // Tab system for department views
         document.getElementById("view-container").innerHTML = `
                 <div style="margin-bottom:24px">
-                  ${renderFilterBar()}
                   <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid var(--border);padding-bottom:0">
                     <button onclick="switchDeptTab('overview')" id="dept-tab-overview" style="padding:12px 16px;background:transparent;color:var(--primary);border:none;border-bottom:3px solid var(--primary);cursor:pointer;font-weight:600;font-size:14px">Vue d'ensemble</button>
                     <button onclick="switchDeptTab('planning')" id="dept-tab-planning" style="padding:12px 16px;background:transparent;color:var(--text-m);border:none;border-bottom:3px solid transparent;cursor:pointer;font-weight:600;font-size:14px">Planning des rotations</button>
@@ -205,8 +204,8 @@
         if (isChefService()) {
           allDepts = allDepts.filter((d) => d.id === AUTH.department_id);
         }
-        const interns = getVisibleInterns();
-        const history = getVisibleHistory();
+        const interns = getBaseInterns();
+        const history = getHistoryForInterns(interns);
         const deptStats = allDepts.map((d) => {
           const dInterns = interns.filter((i) => i.department_id === d.id);
           const ids = dInterns.map((i) => i.id);
@@ -458,4 +457,3 @@
         
         document.getElementById('planning-content').innerHTML = planningHTML || '<div class="card"><div class="card-body"><p>Aucune donnée de rotation disponible. Les rotations seront affichées une fois configurées dans le système.</p></div></div>';
       }
-
