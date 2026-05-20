@@ -49,8 +49,28 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
-from database import SessionLocal, Intern, DailyStatus, Department, Admin, NotificationSetting, NotificationLog, engine
-from schemas import LoginRequest, InternCreate, CreateAdminRequest, ChangePasswordRequest
+from database import (
+    SessionLocal,
+    Intern,
+    DailyStatus,
+    Department,
+    Admin,
+    NotificationSetting,
+    NotificationLog,
+    engine,
+    Rotation,
+    Etablissement,
+    SpecialiteFilieres,
+)
+from schemas import (
+    LoginRequest,
+    InternCreate,
+    InternUpdate,
+    CreateAdminRequest,
+    ChangePasswordRequest,
+    RotationCreate,
+    DepartmentParentUpdate,
+)
 from auth import (                        
     get_current_admin,
     require_super_admin,
@@ -60,7 +80,7 @@ from auth import (
     AdminRole
 )
 from pydantic import BaseModel, computed_field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, time, timezone, timedelta, date as date_type
 import uuid
 import subprocess
@@ -89,7 +109,7 @@ def _ensure_intern_rotation_columns():
     """Add lightweight rotation planning columns on existing databases."""
     inspector = inspect(engine)
     existing = {col["name"] for col in inspector.get_columns("interns")}
-    missing = [name for name in ("start_date", "end_date", "intern_type", "school", "archived") if name not in existing]
+    missing = [name for name in ("start_date", "end_date", "type", "school", "archived") if name not in existing]
     if not missing:
         return
     with engine.begin() as conn:
@@ -526,6 +546,23 @@ def _run_etl_ml_job():
 
     # ── Record that the pipeline ran today ────────────────────────────
     _write_last_pipeline_run(now_local().date())
+
+    # Archive interns whose end_date has passed
+    db = SessionLocal()
+    try:
+        today_str = str(now_local().date())
+        expired = db.query(Intern).filter(
+            Intern.end_date != None,
+            Intern.end_date < today_str,
+            Intern.archive_status == "active",
+        ).all()
+        for intern in expired:
+            intern.archive_status = "pending_archive"
+        db.commit()
+        if expired:
+            print(f"Nightly: {len(expired)} intern(s) marked pending_archive")
+    finally:
+        db.close()
     print(f"Nightly pipeline completed and recorded for {now_local().date()}")
 
 
@@ -837,12 +874,12 @@ class ScanRequest(BaseModel):
     intern_id: str
 
 
-class InternCreate(BaseModel):
+"""class InternCreate(BaseModel):
     first_name: str
     last_name: str
     department_id: str
     start_date: str | None = None
-    end_date: str | None = None
+    end_date: str | None = None"""
 
 
 # ── APP SETUP ─────────────────────────────────────────────────────────────────
@@ -891,6 +928,15 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
 
     daily = get_today_record(request.intern_id, today, db)
 
+    # ── Lookup active rotation for today ──────────────────────────────────
+    today_str = today.isoformat()
+    active_rotation = db.query(Rotation).filter(
+        Rotation.intern_id == request.intern_id,
+        Rotation.date_debut <= today_str,
+        Rotation.date_fin >= today_str,
+    ).first()
+    effective_dept_id = active_rotation.department_id if active_rotation else intern.department_id
+
     # ── CASE A: No record today → CHECK-IN ───────────────────────────────
     if daily is None:
         checkin_status  = resolve_checkin_status(t)
@@ -899,6 +945,7 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
         daily = DailyStatus(
             id=str(uuid.uuid4()),
             intern_id=request.intern_id,
+            department_id=effective_dept_id,
             date=to_utc_naive(now),
             arrival_time=to_utc_naive(now),
             departure_time=None,
@@ -1038,7 +1085,7 @@ def export_excel(
     from excel_export import export_to_excel
     import shutil
 
-    dept_id = None if admin.role == "super_admin" else admin.department_id
+    dept_id = None if admin.role == AdminRole.DFRI.value else admin.department_id
 
     # Write to a named temp file that persists until the OS cleans it up.
     # We must NOT use TemporaryDirectory here — it deletes the file before
@@ -1230,14 +1277,12 @@ def get_scheduler_status():
 
 @app.get("/interns")
 def list_interns(
-    archived: bool | None = None,
+    archive_status: str | None = None,
     db: Session = Depends(get_db),
 ):
     query = db.query(Intern)
-    if archived is True:
-        query = query.filter(Intern.archived.is_(True))
-    elif archived is False:
-        query = query.filter(Intern.archived.is_(False))
+    if archive_status is not None:
+        query = query.filter(Intern.archive_status == archive_status)
     return query.all()
 
 
@@ -1275,8 +1320,14 @@ def add_new_intern(
         department_id=intern_data.department_id,
         start_date=_parse_optional_iso_date(intern_data.start_date, "date_debut"),
         end_date=_parse_optional_iso_date(intern_data.end_date, "date_fin"),
-        intern_type=intern_data.intern_type,
+        type=intern_data.type,
         school=intern_data.school,
+        filiere=intern_data.filiere,
+        specialite_id=intern_data.specialite_id,
+        etablissement_id=intern_data.etablissement_id,
+        cne=intern_data.cne,
+        annee=intern_data.annee,
+        groupe=intern_data.groupe,
     )
     _validate_rotation_dates(new_intern.start_date, new_intern.end_date)
     try:
@@ -1395,7 +1446,11 @@ async def validate_import_file(
                 "row": 1,
                 "message": "Colonne obligatoire manquante : 'service'"
             })
-        
+        type_col = 'type_stagiaire' if 'type_stagiaire' in df.columns else 'type' if 'type' in df.columns else None
+        school_col = 'ecole' if 'ecole' in df.columns else 'universite' if 'universite' in df.columns else None
+        year_col = 'annee_etudes' if 'annee_etudes' in df.columns else 'annee' if 'annee' in df.columns else None
+        email_col = 'email' if 'email' in df.columns else 'email_institutionnel' if 'email_institutionnel' in df.columns else None
+
         if errors_list:
             return {
                 "valid_count": 0,
@@ -1503,6 +1558,10 @@ async def import_file(
         dept_map = {d.name.lower(): d for d in departments}
         
         dept_col = 'service' if 'service' in df.columns else 'departement' if 'departement' in df.columns else None
+        type_col = 'type_stagiaire' if 'type_stagiaire' in df.columns else 'type' if 'type' in df.columns else None
+        school_col = 'ecole' if 'ecole' in df.columns else 'universite' if 'universite' in df.columns else None
+        year_col = 'annee_etudes' if 'annee_etudes' in df.columns else 'annee' if 'annee' in df.columns else None
+        email_col = 'email' if 'email' in df.columns else 'email_institutionnel' if 'email_institutionnel' in df.columns else None
         
         created_count = 0
         failed_rows = []
@@ -1544,7 +1603,7 @@ async def import_file(
                     first_name=prenom,
                     last_name=nom,
                     department_id=dept_map[departement.lower()].id,
-                    intern_type=intern_type,
+                    type=intern_type,
                     school=school,
                 )
                 db.add(new_intern)
@@ -1606,14 +1665,14 @@ def delete_intern(
     return {"message": f"Stagiaire {intern.first_name} supprimé"}
 
 
-class InternUpdate(BaseModel):
+"""class InternUpdate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     department_id: str | None = None
     start_date: str | None = None
     end_date: str | None = None
     intern_type: str | None = None
-    school: str | None = None
+    school: str | None = None"""
 
 
 @app.patch("/interns/{intern_id}", tags=["Administration"])
@@ -1662,10 +1721,22 @@ def update_intern(
         intern.start_date = _parse_optional_iso_date(payload.start_date, "date_debut")
     if payload.end_date is not None:
         intern.end_date = _parse_optional_iso_date(payload.end_date, "date_fin")
-    if getattr(payload, 'intern_type', None) is not None:
-        intern.intern_type = payload.intern_type
+    if getattr(payload, 'type', None) is not None:
+        intern.type = payload.type
     if getattr(payload, 'school', None) is not None:
         intern.school = payload.school
+    if getattr(payload, 'filiere', None) is not None:
+        intern.filiere = payload.filiere
+    if getattr(payload, 'specialite_id', None) is not None:
+        intern.specialite_id = payload.specialite_id
+    if getattr(payload, 'etablissement_id', None) is not None:
+        intern.etablissement_id = payload.etablissement_id
+    if getattr(payload, 'cne', None) is not None:
+        intern.cne = payload.cne
+    if getattr(payload, 'annee', None) is not None:
+        intern.annee = payload.annee
+    if getattr(payload, 'groupe', None) is not None:
+        intern.groupe = payload.groupe
     _validate_rotation_dates(intern.start_date, intern.end_date)
     db.commit()
     db.refresh(intern)
@@ -1702,10 +1773,158 @@ def archive_intern(
             detail="Chef de Service ne peut archiver que les stagiaires de son service",
         )
 
+    intern.archive_status = "archived"
     intern.archived = True
     db.commit()
     db.refresh(intern)
     return {"message": "Stagiaire archivé", "id": intern.id}
+
+
+@app.patch("/interns/{intern_id}/extend", tags=["Administration"])
+def extend_intern(
+    intern_id: str,
+    new_end_date: date_type = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin),
+):
+    """Prolong internship end_date and reactivate if archived."""
+    intern = db.query(Intern).filter(Intern.id == intern_id).first()
+    if not intern:
+        raise HTTPException(status_code=404, detail="Stagiaire introuvable")
+    intern.end_date = str(new_end_date)
+    if intern.archive_status in ("pending_archive", "archived"):
+        intern.archive_status = "active"
+        intern.archived = False
+    db.commit()
+    db.refresh(intern)
+    return {"message": f"Stage prolongé jusqu'au {new_end_date}", "intern_id": intern_id}
+
+
+@app.get("/rotations", tags=["Rotations"])
+def list_rotations(
+    department_id: Optional[str] = None,
+    intern_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin),
+):
+    """List rotations, filterable by department_id or intern_id."""
+    q = db.query(Rotation)
+    if department_id:
+        q = q.filter(Rotation.department_id == department_id)
+    if intern_id:
+        q = q.filter(Rotation.intern_id == intern_id)
+    rows = q.all()
+    return [
+        {
+            "id": r.id,
+            "intern_id": r.intern_id,
+            "department_id": r.department_id,
+            "periode_num": r.periode_num,
+            "date_debut": str(r.date_debut),
+            "date_fin": str(r.date_fin),
+            "annee_univ": r.annee_univ,
+        }
+        for r in rows
+    ]
+
+
+@app.post("/rotations", tags=["Rotations"])
+def create_rotation(
+    payload: RotationCreate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin),
+):
+    """Create rotation with overlap validation."""
+    # Check for overlapping rotations for same intern
+    overlap = db.query(Rotation).filter(
+        Rotation.intern_id == payload.intern_id,
+        Rotation.date_debut <= payload.date_fin,
+        Rotation.date_fin >= payload.date_debut,
+    ).first()
+    if overlap:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Rotation chevauchée une rotation existante du {overlap.date_debut} au {overlap.date_fin}"
+        )
+    
+    rot = Rotation(
+        id=str(uuid.uuid4()),
+        intern_id=payload.intern_id,
+        department_id=payload.department_id,
+        periode_num=payload.periode_num,
+        date_debut=payload.date_debut,
+        date_fin=payload.date_fin,
+        annee_univ=payload.annee_univ,
+    )
+    db.add(rot)
+    db.commit()
+    db.refresh(rot)
+    return {"message": "Rotation créée", "id": rot.id}
+
+
+@app.get("/departments/tree", tags=["Departments"])
+def get_department_tree(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(get_current_admin),
+):
+    """Return nested department tree with parent-child relationships."""
+    all_depts = db.query(Department).all()
+    dept_map = {
+        d.id: {
+            "id": d.id,
+            "name": d.name,
+            "parent_id": d.parent_id,
+            "children": []
+        }
+        for d in all_depts
+    }
+    roots = []
+    for d in dept_map.values():
+        if d["parent_id"] and d["parent_id"] in dept_map:
+            dept_map[d["parent_id"]]["children"].append(d)
+        else:
+            roots.append(d)
+    return roots
+
+
+@app.patch("/departments/{dept_id}/parent", tags=["Departments"])
+def set_department_parent(
+    dept_id: str,
+    payload: DepartmentParentUpdate,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(require_super_admin),
+):
+    """Set parent department with cyclic loop prevention."""
+    dept = db.query(Department).filter(Department.id == dept_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Département introuvable")
+    
+    if payload.parent_id:
+        # Prevent self-parent assignment
+        if payload.parent_id == dept_id:
+            raise HTTPException(status_code=400, detail="Un département ne peut pas être son propre parent")
+        
+        parent = db.query(Department).filter(Department.id == payload.parent_id).first()
+        if not parent:
+            raise HTTPException(status_code=404, detail="Département parent introuvable")
+        
+        # Prevent cyclic loops: check if parent_id is a descendant of dept_id
+        current = parent
+        visited = set()
+        while current.parent_id:
+            if current.parent_id == dept_id:
+                raise HTTPException(status_code=400, detail="Assignation créerait une boucle cyclique")
+            if current.parent_id in visited:
+                break  # Already visited, avoid infinite loop
+            visited.add(current.parent_id)
+            current = db.query(Department).filter(Department.id == current.parent_id).first()
+            if not current:
+                break
+    
+    dept.parent_id = payload.parent_id
+    db.commit()
+    db.refresh(dept)
+    return {"message": "Hiérarchie mise à jour", "id": dept.id, "parent_id": dept.parent_id}
 
 
 class DepartmentUpdate(BaseModel):
@@ -1784,7 +2003,7 @@ def seed_admin(db: Session = Depends(get_db)):
     new_admin = Admin(
         username="admin",
         hashed_password=hash_password("admin123"),
-        role=AdminRole.SUPER_ADMIN.value,
+        role=AdminRole.DFRI.value,
         department_id=None
     )
     db.add(new_admin)

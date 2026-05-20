@@ -1,6 +1,7 @@
 from pathlib import Path
 import sys
 
+# Keeping the team's path setup for executing outside of root directory
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
@@ -40,8 +41,6 @@ from database import engine
 
 MIGRATIONS = [
 
-
-    
     # ── Colonnes supplémentaires sur interns ──────────────────────────────────
     """
     ALTER TABLE interns
@@ -55,6 +54,16 @@ MIGRATIONS = [
     ALTER TABLE interns
         ADD COLUMN IF NOT EXISTS groupe VARCHAR
     """,
+    # Nouveaux champs Intern
+    "ALTER TABLE interns ADD COLUMN IF NOT EXISTS type VARCHAR",
+    "ALTER TABLE interns ADD COLUMN IF NOT EXISTS school VARCHAR",
+    "ALTER TABLE interns ADD COLUMN IF NOT EXISTS specialty VARCHAR",
+    "ALTER TABLE interns ADD COLUMN IF NOT EXISTS start_date DATE",
+    "ALTER TABLE interns ADD COLUMN IF NOT EXISTS end_date DATE",
+    "ALTER TABLE interns ADD COLUMN IF NOT EXISTS archive_status VARCHAR DEFAULT 'active'",
+
+    # Arborescence Department
+    "ALTER TABLE departments ADD COLUMN IF NOT EXISTS parent_id VARCHAR REFERENCES departments(id)",
  
     # ── Index sur cne pour les lookups rapides à l'import ─────────────────────
     """
@@ -131,6 +140,92 @@ MIGRATIONS = [
     """
     ALTER TABLE daily_status
         ADD COLUMN IF NOT EXISTS needs_attention BOOLEAN DEFAULT FALSE
+    """,
+
+    # ── 6. daily_status — add department_id if missing ───────────────────────
+    """
+    ALTER TABLE daily_status
+        ADD COLUMN IF NOT EXISTS department_id VARCHAR REFERENCES departments(id)
+    """,
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # ── PHASE 1: FILIÈRE STRUCTURE ────────────────────────────────────────────
+    # ──────────────────────────────────────────────────────────────────────────
+    
+    # ── 7. Create etablissements table ────────────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS etablissements (
+        id             VARCHAR PRIMARY KEY,
+        nom            VARCHAR UNIQUE NOT NULL,
+        type           VARCHAR,
+        description    TEXT,
+        created_at     TIMESTAMP DEFAULT now()
+    )
+    """,
+    
+    # ── 8. Create specialites_filieres table ──────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS specialites_filieres (
+        id             VARCHAR PRIMARY KEY,
+        filiere        VARCHAR NOT NULL,
+        nom            VARCHAR NOT NULL,
+        description    TEXT,
+        created_at     TIMESTAMP DEFAULT now(),
+        UNIQUE (filiere, nom)
+    )
+    """,
+
+    # ── 9. Create PostgreSQL ENUM for filiere (if PostgreSQL) ─────────────────
+    # For PostgreSQL: create ENUM type for strict type checking
+    # For SQLite: this is skipped (no error) since SQLite doesn't support ENUMs
+    """
+    DO $$ BEGIN
+        CREATE TYPE filiere_enum AS ENUM ('Médicale', 'Infirmière', 'Techniques Santé/Lab', 'Administrative');
+    EXCEPTION
+        WHEN duplicate_object THEN null;
+    END $$;
+    """,
+
+    # ── 10. Add filiere column to interns ──────────────────────────────────────
+    """
+    ALTER TABLE interns
+        ADD COLUMN IF NOT EXISTS filiere VARCHAR
+    """,
+
+    # ── 11. Add specialite_id column to interns ───────────────────────────────
+    """
+    ALTER TABLE interns
+        ADD COLUMN IF NOT EXISTS specialite_id VARCHAR REFERENCES specialites_filieres(id)
+    """,
+
+    # ── 12. Add etablissement_id column to interns ────────────────────────────
+    """
+    ALTER TABLE interns
+        ADD COLUMN IF NOT EXISTS etablissement_id VARCHAR REFERENCES etablissements(id)
+    """,
+
+    # ── 13. Index on etablissements.nom for fast lookups ──────────────────────
+    """
+    CREATE INDEX IF NOT EXISTS ix_etablissements_nom
+        ON etablissements (nom)
+    """,
+
+    # ── 14. Index on specialites_filieres for lookups ───────────────────────── 
+    """
+    CREATE INDEX IF NOT EXISTS ix_specialites_filiere
+        ON specialites_filieres (filiere)
+    """,
+
+    # ── 15. Index on interns.filiere for filtering ────────────────────────────
+    """
+    CREATE INDEX IF NOT EXISTS ix_interns_filiere
+        ON interns (filiere)
+    """,
+
+    # ── 16. Index on interns.etablissement_id ────────────────────────────────
+    """
+    CREATE INDEX IF NOT EXISTS ix_interns_etablissement_id
+        ON interns (etablissement_id)
     """,
 ]
 
