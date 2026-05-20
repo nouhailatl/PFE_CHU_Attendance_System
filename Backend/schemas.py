@@ -6,10 +6,16 @@ from enum import Enum as PyEnum
 
 class FiliereEnum(str, PyEnum):
     """4 main academic pathways in CHU training programs."""
-    MEDICALE = "Médicale"
-    INFIRMIERE = "Infirmière"
-    TECHNIQUES_SANTE = "Techniques Santé/Lab"
-    ADMINISTRATIVE = "Administrative"
+    MEDICINE = "medicine"
+    NURSE = "nurse"
+    TECH_SANTE_LAB_BIOLOGY = "tech_sante_lab_biology"
+    ADMINISTRATIVE = "administrative"
+
+    # Legacy labels kept so old clients and existing rows remain readable.
+    MEDICALE_LEGACY = "Médicale"
+    INFIRMIERE_LEGACY = "Infirmière"
+    TECHNIQUES_SANTE_LEGACY = "Techniques Santé/Lab"
+    ADMINISTRATIVE_LEGACY = "Administrative"
 
 
 class LoginRequest(BaseModel):

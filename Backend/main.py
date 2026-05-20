@@ -544,6 +544,12 @@ def _run_etl_ml_job():
         except Exception as e:
             print(f"ML training job failed: {e}")
 
+    try:
+        export_path = export_to_excel()
+        print(f"Nightly Excel export refreshed: {export_path}")
+    except Exception as e:
+        print(f"Nightly Excel export failed: {e}")
+
     # ── Record that the pipeline ran today ────────────────────────────
     _write_last_pipeline_run(now_local().date())
 
@@ -663,6 +669,11 @@ def _run_pipeline_for_date(target_date: date_type, db: Session) -> dict:
             "reason": "ml/train.py not found yet — will run once ML module is added",
         }
 
+    try:
+        results["step5_excel_export"] = {"path": export_to_excel()}
+    except Exception as e:
+        results["step5_excel_export"] = {"error": str(e)}
+
     return results
 
 
@@ -776,6 +787,75 @@ ATTENTION_STATUSES = {"missed_checkin", "early_checkout", "missed_checkout", "ab
 # Minimum number of intern-days of data before ML models are trusted
 # Below this threshold the system falls back to rule-based labels
 ML_MIN_SAMPLES = 30
+
+ARCHIVE_STATUS_ACTIVE = "active"
+ARCHIVE_STATUS_PENDING = "pending_archive"
+ARCHIVE_STATUS_ARCHIVED = "archived"
+INACTIVE_STAGE_STATUSES = {ARCHIVE_STATUS_PENDING, ARCHIVE_STATUS_ARCHIVED}
+
+FILIERE_MEDICINE = "medicine"
+FILIERE_NURSE = "nurse"
+FILIERE_TECH_SANTE_LAB_BIOLOGY = "tech_sante_lab_biology"
+FILIERE_ADMINISTRATIVE = "administrative"
+
+FILIERE_ALIASES = {
+    FILIERE_MEDICINE: {FILIERE_MEDICINE, "Médicale"},
+    FILIERE_NURSE: {FILIERE_NURSE, "Infirmière"},
+    FILIERE_TECH_SANTE_LAB_BIOLOGY: {FILIERE_TECH_SANTE_LAB_BIOLOGY, "Techniques Santé/Lab"},
+    FILIERE_ADMINISTRATIVE: {FILIERE_ADMINISTRATIVE, "Administrative"},
+}
+VALID_FILIERES = set(FILIERE_ALIASES.keys()).union(*FILIERE_ALIASES.values())
+SPECIALITE_REQUIRED_FILIERES = {FILIERE_MEDICINE}
+SPECIALITE_ALLOWED_FILIERES = {FILIERE_MEDICINE, FILIERE_TECH_SANTE_LAB_BIOLOGY}
+YEAR_ALLOWED_FILIERES = {FILIERE_MEDICINE, FILIERE_NURSE}
+
+
+def _normalize_filiere(value: str | None) -> str | None:
+    if value in (None, ""):
+        return None
+    raw = str(getattr(value, "value", value))
+    for official, aliases in FILIERE_ALIASES.items():
+        if raw in aliases:
+            return official
+    raise HTTPException(status_code=400, detail="Filiere invalide")
+
+
+def _filiere_filter_values(value: str) -> list[str]:
+    official = _normalize_filiere(value)
+    return sorted(FILIERE_ALIASES[official])
+
+
+def _validate_intern_business_rules(
+    filiere: str | None,
+    etablissement_id: str | None,
+    specialite_id: str | None,
+    annee: int | None,
+) -> None:
+    official = _normalize_filiere(filiere)
+    if not official:
+        return
+    if not etablissement_id:
+        raise HTTPException(status_code=400, detail="Etablissement requis pour cette filiere")
+    if official in SPECIALITE_REQUIRED_FILIERES and not specialite_id:
+        raise HTTPException(status_code=400, detail="Specialite requise pour la filiere medicine")
+    if specialite_id and official not in SPECIALITE_ALLOWED_FILIERES:
+        raise HTTPException(status_code=400, detail="Specialite non applicable pour cette filiere")
+    if annee is not None and official not in YEAR_ALLOWED_FILIERES:
+        raise HTTPException(status_code=400, detail="Annee/promotion non applicable pour cette filiere")
+
+
+def _validate_intern_filter_rules(
+    filiere: str | None,
+    specialite_id: str | None,
+    annee: int | None,
+) -> None:
+    official = _normalize_filiere(filiere)
+    if not official:
+        return
+    if specialite_id and official not in SPECIALITE_ALLOWED_FILIERES:
+        raise HTTPException(status_code=400, detail="Specialite non applicable pour cette filiere")
+    if annee is not None and official not in YEAR_ALLOWED_FILIERES:
+        raise HTTPException(status_code=400, detail="Annee/promotion non applicable pour cette filiere")
 
 
 # ── CHECKIN STATUS RESOLVER ───────────────────────────────────────────────────
@@ -921,6 +1001,12 @@ def register_scan(request: ScanRequest, db: Session = Depends(get_db)):
     intern = db.query(Intern).filter(Intern.id == request.intern_id).first()
     if not intern:
         raise HTTPException(status_code=404, detail="Stagiaire introuvable")
+
+    if intern.archive_status in INACTIVE_STAGE_STATUSES:
+        return {
+            "event": "inactive_stage",
+            "message": "Stage terminé",
+        }
 
     now   = now_local()
     today = now.date()
@@ -1278,11 +1364,37 @@ def get_scheduler_status():
 @app.get("/interns")
 def list_interns(
     archive_status: str | None = None,
+    department_id: str | None = None,
+    filiere: str | None = None,
+    etablissement_id: str | None = None,
+    specialite_id: str | None = None,
+    year: int | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     db: Session = Depends(get_db),
 ):
     query = db.query(Intern)
     if archive_status is not None:
         query = query.filter(Intern.archive_status == archive_status)
+    if department_id is not None:
+        query = query.filter(Intern.department_id == department_id)
+    if filiere is not None:
+        _validate_intern_filter_rules(filiere, specialite_id, year)
+        query = query.filter(Intern.filiere.in_(_filiere_filter_values(filiere)))
+    if etablissement_id is not None:
+        query = query.filter(Intern.etablissement_id == etablissement_id)
+    if specialite_id is not None:
+        query = query.filter(Intern.specialite_id == specialite_id)
+    if year is not None:
+        query = query.filter(Intern.annee == year)
+
+    parsed_start = _parse_optional_iso_date(start_date, "start_date")
+    parsed_end = _parse_optional_iso_date(end_date, "end_date")
+    _validate_rotation_dates(parsed_start, parsed_end)
+    if parsed_start is not None:
+        query = query.filter(Intern.end_date >= parsed_start)
+    if parsed_end is not None:
+        query = query.filter(Intern.start_date <= parsed_end)
     return query.all()
 
 
@@ -1312,6 +1424,13 @@ def add_new_intern(
                 detail="Chef de Service ne peut ajouter des stagiaires que dans son service"
             )
     
+    _validate_intern_business_rules(
+        intern_data.filiere,
+        intern_data.etablissement_id,
+        intern_data.specialite_id,
+        intern_data.annee,
+    )
+
     new_uuid = str(uuid.uuid4())
     new_intern = Intern(
         id=new_uuid,
@@ -1322,6 +1441,7 @@ def add_new_intern(
         end_date=_parse_optional_iso_date(intern_data.end_date, "date_fin"),
         type=intern_data.type,
         school=intern_data.school,
+        specialty=intern_data.specialty,
         filiere=intern_data.filiere,
         specialite_id=intern_data.specialite_id,
         etablissement_id=intern_data.etablissement_id,
@@ -1725,6 +1845,8 @@ def update_intern(
         intern.type = payload.type
     if getattr(payload, 'school', None) is not None:
         intern.school = payload.school
+    if getattr(payload, 'specialty', None) is not None:
+        intern.specialty = payload.specialty
     if getattr(payload, 'filiere', None) is not None:
         intern.filiere = payload.filiere
     if getattr(payload, 'specialite_id', None) is not None:
@@ -1737,6 +1859,17 @@ def update_intern(
         intern.annee = payload.annee
     if getattr(payload, 'groupe', None) is not None:
         intern.groupe = payload.groupe
+    category_fields_touched = any(
+        getattr(payload, field, None) is not None
+        for field in ("filiere", "specialite_id", "etablissement_id", "annee")
+    )
+    if category_fields_touched:
+        _validate_intern_business_rules(
+            intern.filiere,
+            intern.etablissement_id,
+            intern.specialite_id,
+            intern.annee,
+        )
     _validate_rotation_dates(intern.start_date, intern.end_date)
     db.commit()
     db.refresh(intern)

@@ -20,7 +20,9 @@ from datetime import datetime
 from database import SessionLocal, Intern, DailyStatus, Department
 import os
 
-EXPORT_PATH = "CHU_Pointages.xlsx"
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(BACKEND_DIR)
+EXPORT_PATH = os.path.join(PROJECT_DIR, "Datas", "CHU_Pointages.xlsx")
 
 # ── COULEURS ──────────────────────────────────────────────────────────────────
 BLUE_HEADER  = "1E88E5"
@@ -314,6 +316,7 @@ def export_to_excel(path: str = EXPORT_PATH, department_id: str = None) -> str:
     sheet_departements(wb, df_interns, df_daily)
     sheet_alertes(wb, df_interns, df_daily)
 
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     wb.save(path)
     print(f"✅ Excel exporté → {path}")
     return path
